@@ -1,0 +1,31 @@
+[target]
+column = "UNITS"
+
+[impute]
+BRITTLE_STALK = 5.0
+PLANT_HEIGHT = 6.0
+
+[features]
+pca_inputs = ["PRODUCT_AGE", "PROTECTION_SCORE", "DROUGHT_TOLERANCE", "BRITTLE_STALK", "PLANT_HEIGHT", "RELATIVE_MATURITY", "AGE_X_PROTECTION", "HEIGHT_X_MATURITY"]
+final = ["PRODUCT_AGE", "PROTECTION_SCORE", "DROUGHT_TOLERANCE", "BRITTLE_STALK", "PLANT_HEIGHT", "RELATIVE_MATURITY", "AGE_X_PROTECTION", "HEIGHT_X_MATURITY", "IS_NEW_PRODUCT", "PCA1", "PCA2", "STATE_California", "STATE_Illinois", "STATE_Iowa", "STATE_NewYork", "STATE_Texas", "LIFECYCLE_EXPANSION", "LIFECYCLE_INTRODUCTION", "LIFECYCLE_PHASEOUT", "LIFECYCLE_ESTABLISHED"]
+id_columns = ["PRODUCT", "STATE", "LIFECYCLE"]
+
+[categorical]
+columns = ["STATE", "LIFECYCLE"]
+one_hot_columns_flat = ["STATE_California", "STATE_Illinois", "STATE_Iowa", "STATE_NewYork", "STATE_Texas", "LIFECYCLE_EXPANSION", "LIFECYCLE_INTRODUCTION", "LIFECYCLE_PHASEOUT", "LIFECYCLE_ESTABLISHED"]
+
+[xgb_params]
+n_estimators = 200
+max_depth = 5
+learning_rate = 0.05
+subsample = 0.8
+
+[input]
+data_path = "data/case_study_data.csv"
+
+[output]
+model_path = "data/models/xgb_model.pkl"
+scaler_path = "data/models/xgb_scaler.pkl"
+pca_path = "data/models/xgb_pca.pkl"
+features_path = "data/models/xgb_features.pkl"
+cat_path = "data/models/xgb_cat.pkl"
