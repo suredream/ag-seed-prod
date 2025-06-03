@@ -11,7 +11,8 @@ uv run uvicorn src/api:app --reload --port 8000
 
 
 ## Todo
-
+- scenarios analysis
+- GeoAI output
 
 
 

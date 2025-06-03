@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
+import json
 import toml
 import shap
 import matplotlib.pyplot as plt
@@ -18,6 +18,7 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from src.utils import load_artifacts, calculate_confidence_intervals
 from scipy.stats import gaussian_kde
 from xgboost import XGBRegressor
+import requests
 
 st.set_page_config(page_title="Model Analysis Dashboard", layout="wide")
 
@@ -195,13 +196,13 @@ try:
 
     # Single sample
     st.subheader("🎯 SHAP Waterfall (Single Sample)")
-    sample_idx = st.selectbox("Select Sample Index", list(range(min(20, len(X_test)))))
-    sample = X_test.iloc[sample_idx]
-    pred = y_pred_test_filtered[sample_idx]
-    actual = y_test_filtered.iloc[sample_idx]
-
-    col7, col8 = st.columns(2)
+    col7, col8, col9 = st.columns([1, 2, 2])
     with col7:
+        sample_idx = st.selectbox("Select Sample Index", list(range(min(20, len(X_test)))))
+        sample = X_test.iloc[sample_idx]
+        pred = y_pred_test_filtered[sample_idx]
+        actual = y_test_filtered.iloc[sample_idx]
+        
         st.write("**Sample Features**")
         st.dataframe(pd.DataFrame({'Feature': sample.index, 'Value': sample.values}))
         st.metric("Prediction", f"{pred:.3f}")
@@ -220,6 +221,42 @@ try:
         )
         st.pyplot(fig3)
         plt.close()
+
+    with col9:
+        # input_dict = {
+        #     'PRODUCT': 'P123',
+        #     'SALESYEAR': 2024,
+        #     'RELEASE_YEAR': 2020,
+        #     'DISEASE_RESISTANCE': 3,
+        #     'INSECT_RESISTANCE': 4,
+        #     'PROTECTION': 2,
+        #     'DROUGHT_TOLERANCE': 5.0,
+        #     'BRITTLE_STALK': 0,
+        #     'PLANT_HEIGHT': 6.0,
+        #     'RELATIVE_MATURITY': 3,
+        #     'STATE': 'Texas',
+        #     'LIFECYCLE': 'EXPANSION'
+        # }
+        # try:
+        # features = json.loads(features_input)
+        payload = {
+            "features": sample.values.astype(float).tolist(),
+            'names': sample.index.tolist(),
+            "shap": shap_values_test[sample_idx].astype(float).tolist(),
+            "prediction": float(pred),
+        }
+        print('payload')
+        print(payload)
+        response = requests.post(
+            "http://localhost:8000/explain_shap",
+            json=payload
+        )
+        explanation = response.json()["explanation"]
+        # print('explanation')
+        st.markdown("### 📘 GenAI Explanation")
+        st.markdown(explanation)
+        # except Exception as e:
+        #     st.error(f"Explanation generation failed: {e}")
 
 except Exception as e:
     st.error(f"SHAP computation failed: {e}")

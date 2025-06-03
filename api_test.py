@@ -41,13 +41,16 @@ payload = {
 }
 
 # Step 6: 调用 FastAPI 预测接口
-url = "http://localhost:8000/predict"
+# url = "http://localhost:8000/predict"
+url = "http://localhost:8000/explain"
 response = requests.post(url, json=payload)
 
 # Step 7: 输出结果
 if response.status_code == 200:
     result = response.json()
-    print("🔮 Predicted Units:", result["prediction"][0])
+    print("🔮 Predicted Units:", result["prediction"])
+    print("🔮 Predicted Units:", result["prompt"])
+    print("🔮 Predicted Units:", result["explanation"])
     # print("🔻 Lower Bound:", result["lower_bound"][0])
     # print("🔺 Upper Bound:", result["upper_bound"][0])
 else:
