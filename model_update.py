@@ -11,8 +11,8 @@ config = toml.load("config/xgb.toml")
 # print(X_test.columns)
 
 # # === 训练模型 ===
-if not os.path.exists(config['output']['model_path']):
-# if True:
+# if not os.path.exists(config['output']['model_path']):
+if True:
     data_path = config['input']['data_path']
     df = pd.read_csv(data_path)
     train_and_save(df, config)
@@ -39,6 +39,6 @@ input_dict = {
 input_df = pd.DataFrame([input_dict])
 
 # === 调用推理函数 ===
-prediction = inference(input_df, config)
+prediction, _ = inference(input_df, config)
 
 print(f"🔮 预测销量（UNITS）为: {prediction[0]:.2f}")

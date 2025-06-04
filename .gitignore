@@ -13,3 +13,4 @@ data
 *.db
 notebooks
 .DS_Store
+obsolete/

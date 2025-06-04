@@ -10,6 +10,13 @@ uv run uvicorn src/api:app --reload --port 8000
 ```
 
 
+## Perf
+# (3.871694550208945, 45.068638115046674, 0.4429956793847415) one-hot
+# 3.1283773639900305, 47.785631084564194, 0.4094163016533944, grid search, log
+# (3.4393788435350467, 37.710091280289916, 0.5339401266064745) grid search
+# {'learning_rate': 0.05, 'max_depth': 5, 'n_estimators': 200, 'subsample': 0.8}
+
+
 ## Todo
 - scenarios analysis
 - GeoAI output
