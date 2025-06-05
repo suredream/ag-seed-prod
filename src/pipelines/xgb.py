@@ -8,12 +8,16 @@ from sklearn.decomposition import PCA
 from xgboost import XGBRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import toml
+from sklearn.preprocessing import LabelEncoder
+
+label_encoder = LabelEncoder()
 
 # === Load Config ===
 config = toml.load("config/xgb.toml")
 
 # === Utility Functions ===
 def preprocess_data(df, config):
+    df['PRODUCT_encoded'] = label_encoder.fit_transform(df['PRODUCT'])
     # Fill missing values
     df['DROUGHT_TOLERANCE'] = df.groupby(['LIFECYCLE', 'STATE'])['DROUGHT_TOLERANCE']\
         .transform(lambda x: x.fillna(x.mean().round()))
@@ -30,8 +34,14 @@ def preprocess_data(df, config):
 
 
     # df['UNITS_NORM_BY_PRODUCT'] = df.groupby('PRODUCT')['UNITS'].transform(lambda x: (x - x.mean()) / (x.std() + 1e-5))
+    df = df.sort_values(by=['STATE', 'PRODUCT', 'SALESYEAR'])
 
-    
+    # 添加上一年的 UNITS（按 STATE+PRODUCT 分组后向下移动一行）
+    df['PREVIOUS_UNITS'] = (
+        df.groupby(['STATE', 'PRODUCT'])['UNITS']
+        .shift(1)
+    )
+    df['PREVIOUS_UNITS'] = df['PREVIOUS_UNITS'].fillna(0)
 
     return df
 

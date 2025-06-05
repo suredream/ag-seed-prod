@@ -1,0 +1,156 @@
+# train_model.py
+import pandas as pd
+import numpy as np
+import joblib
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from xgboost import XGBRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import toml
+
+from sklearn.preprocessing import OneHotEncoder
+
+# label_encoder = LabelEncoder()
+
+# === Load Config ===
+config = toml.load("config/residual.toml")
+
+# === Utility Functions ===
+def preprocess_data(df, config):
+    # df['PRODUCT_encoded'] = label_encoder.fit_transform(df['PRODUCT'])
+    # Fill missing values
+    df['DROUGHT_TOLERANCE'] = df.groupby(['LIFECYCLE', 'STATE'])['DROUGHT_TOLERANCE']\
+        .transform(lambda x: x.fillna(x.mean().round()))
+
+    df['BRITTLE_STALK'] = pd.to_numeric(df['BRITTLE_STALK'], errors='coerce').fillna(config['impute']['BRITTLE_STALK'])
+    df['PLANT_HEIGHT'] = pd.to_numeric(df['PLANT_HEIGHT'], errors='coerce').fillna(config['impute']['PLANT_HEIGHT'])
+
+    # Feature Engineering
+    df['PROTECTION_SCORE'] = df['DISEASE_RESISTANCE'] + df['INSECT_RESISTANCE'] + df['PROTECTION']
+    df['PRODUCT_AGE'] = df['SALESYEAR'] - df['RELEASE_YEAR']
+    df['AGE_X_PROTECTION'] = df['PRODUCT_AGE'] * df['PROTECTION_SCORE']
+    df['HEIGHT_X_MATURITY'] = df['PLANT_HEIGHT'] * df['RELATIVE_MATURITY']
+    df['IS_NEW_PRODUCT'] = (df['PRODUCT_AGE'] <= 2).astype(int)
+
+
+    # df['UNITS_NORM_BY_PRODUCT'] = df.groupby('PRODUCT')['UNITS'].transform(lambda x: (x - x.mean()) / (x.std() + 1e-5))
+    # df = df.sort_values(by=['STATE', 'PRODUCT', 'SALESYEAR'])
+
+    # # 添加上一年的 UNITS（按 STATE+PRODUCT 分组后向下移动一行）
+    # df['PREVIOUS_UNITS'] = (
+    #     df.groupby(['STATE', 'PRODUCT'])['UNITS']
+    #     .shift(1)
+    # )
+    # df['PREVIOUS_UNITS'] = df['PREVIOUS_UNITS'].fillna(0)
+
+    return df
+
+def generate_pca_features(df, config):
+    pca_features = config['features']['pca_inputs']
+    scaler = StandardScaler()
+    pca = PCA(n_components=2)
+    scaled = scaler.fit_transform(df[pca_features])
+    pca_result = pca.fit_transform(scaled)
+    df['PCA1'] = pca_result[:, 0]
+    df['PCA2'] = pca_result[:, 1]
+    return df, scaler, pca
+
+def encode_categorical(df, config):
+    for col in config['categorical']['one_hot_columns_flat']:  # all possible One-Hot columns
+        df[col] = 0
+    for col in config['categorical']['columns']:
+        val = df[col].iloc[0]  # assume batch has same category in example
+        encoded_col = f"{col}_{val}"
+        if encoded_col in df.columns:
+            df.loc[:, encoded_col] = 1
+    return df
+
+def train_and_save(df, config):
+    df = preprocess_data(df, config)
+    # print(df.columns.to_list())
+    df, scaler, pca = generate_pca_features(df, config)
+    # df = encode_categorical(df, config)
+    df_cat = df[config['categorical']['columns']]
+    df = pd.get_dummies(df, columns=config['categorical']['columns'])
+    df = pd.concat([df, df_cat], axis=1)
+
+    X = df[config['features']['final']]
+    X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
+    # y = df[config['target']['column']]#.squeeze()
+    y = df['UNITS']
+
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # Split data
+    X_train, X_test, y_train, y_test, prod_train, prod_test = train_test_split(
+        X, y, df['PRODUCT'], test_size=0.2, random_state=42)
+
+    # Train base model
+    # base_model = XGBRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
+    base_model = XGBRegressor(**config['xgb_params'])
+    base_model.fit(X_train, y_train)
+
+    # Predict and compute residuals
+    y_base_pred_train = base_model.predict(X_train)
+    residuals_train = y_train - y_base_pred_train
+
+    # Encode product_name
+    ohe = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+    product_encoded_train = ohe.fit_transform(prod_train.to_frame())
+    print(product_encoded_train.shape, product_encoded_train)
+    product_encoded_test = ohe.transform(prod_test.to_frame())
+
+    # # Train residual model
+    residual_model = XGBRegressor(n_estimators=50, max_depth=3, learning_rate=0.1, random_state=42)
+    residual_model.fit(product_encoded_train, residuals_train)
+
+    # # Inference
+    y_base_pred_test = base_model.predict(X_test)
+    y_residual_pred_test = residual_model.predict(product_encoded_test)
+    y_final_pred = y_base_pred_test + y_residual_pred_test
+
+    # Compute metrics
+    base_mse = mean_squared_error(y_test, y_base_pred_test)
+    base_mae = mean_absolute_error(y_test, y_base_pred_test)
+    base_r2 = r2_score(y_test, y_base_pred_test)
+
+    print(base_mse, base_mae, base_r2)
+
+    final_mse = mean_squared_error(y_test, y_final_pred)
+    final_mae = mean_absolute_error(y_test, y_final_pred)
+    final_r2 = r2_score(y_test, y_final_pred)
+
+    print(final_mse, final_mae, final_r2)
+
+# # === Inference Function ===
+def inference(input_df, config):
+#     model = joblib.load(config['output']['model_path'])
+#     scaler = joblib.load(config['output']['scaler_path'])
+#     pca = joblib.load(config['output']['pca_path'])
+
+#     df = preprocess_data(input_df.copy(), config)
+#     pca_features = config['features']['pca_inputs']
+#     scaled = scaler.transform(df[pca_features])
+#     pca_result = pca.transform(scaled)
+#     df['PCA1'] = pca_result[:, 0]
+#     df['PCA2'] = pca_result[:, 1]
+
+#     df = encode_categorical(df, config)
+#     X = df[config['features']['final']]
+#     pred = model.predict(X)
+#     return pred, X
+
+    X_trait = trait_encoder(trait_df)
+    # Trait prediction
+    y_base_pred = base_model.predict(X_trait)
+
+    # Product name one-hot encoding
+    product_encoded = product_encoder.transform(product_name_series.to_frame())
+
+    # Residual prediction
+    y_residual_pred = residual_model.predict(product_encoded)
+
+    # Final prediction
+    y_final_pred = y_base_pred + y_residual_pred
+
+    return y_final_pred

@@ -1,11 +1,13 @@
 import pandas as pd
 import toml
 import os
-from src.pipelines.xgb import train_and_save, inference  # 确保该模块已保存为 train_model.py
+# from src.pipelines.xgb import train_and_save, inference  # 确保该模块已保存为 train_model.py
+from src.pipelines.residue import train_and_save, inference  # 确保该模块已保存为 train_model.py
 from src.utils import load_artifacts, calculate_confidence_intervals
 
 # # === 加载配置文件 ===
-config = toml.load("config/xgb.toml")
+config = toml.load("config/residual.toml")
+# config = toml.load("config/xgb.toml")
 # model, scaler, pca, X_train, X_test, y_train, y_test = load_artifacts(config)
 
 # print(X_test.columns)
@@ -39,6 +41,6 @@ input_dict = {
 input_df = pd.DataFrame([input_dict])
 
 # === 调用推理函数 ===
-prediction, _ = inference(input_df, config)
+# prediction, _ = inference(input_df, config)
 
 print(f"🔮 预测销量（UNITS）为: {prediction[0]:.2f}")
