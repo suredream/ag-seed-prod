@@ -30,8 +30,10 @@ subsample = 0.8
 data_path = "data/case_study_data.csv"
 
 [output]
-model_path = "data/models/xgb_model.pkl"
-scaler_path = "data/models/xgb_scaler.pkl"
-pca_path = "data/models/xgb_pca.pkl"
+base_model_path = "data/models/base_model.pkl"
+base_scaler_path = "data/models/base_scaler.pkl"
+residue_model_path = "data/models/residue_model.pkl"
+residue_ohe_path = "data/models/residue_ohe.pkl"
+pca_path = "data/models/base_pca.pkl"
 features_path = "data/models/xgb_features.pkl"
 cat_path = "data/models/xgb_cat.pkl"

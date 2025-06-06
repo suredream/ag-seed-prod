@@ -112,3 +112,11 @@ python scripts/run_training.py --experiment-name "exp_001" --model-type "xgboost
 
 访问Streamlit Dashboard: http://localhost:8501
 访问FastAPI文档: http://localhost:8000/docs
+
+
+
+train:
+- create model
+inference: shap
+- ['pred']
+- ['explain_shap']

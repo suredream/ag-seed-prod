@@ -8,7 +8,7 @@ from sklearn.decomposition import PCA
 from xgboost import XGBRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import toml
-
+import shap
 from sklearn.preprocessing import OneHotEncoder
 
 # label_encoder = LabelEncoder()
@@ -66,7 +66,7 @@ def encode_categorical(df, config):
             df.loc[:, encoded_col] = 1
     return df
 
-def train_and_save(df, config):
+def train_and_save_residual(df, config):
     df = preprocess_data(df, config)
     # print(df.columns.to_list())
     df, scaler, pca = generate_pca_features(df, config)
@@ -84,6 +84,9 @@ def train_and_save(df, config):
     # Split data
     X_train, X_test, y_train, y_test, prod_train, prod_test = train_test_split(
         X, y, df['PRODUCT'], test_size=0.2, random_state=42)
+    
+    print(prod_train.head())
+    print(type(prod_train))
 
     # Train base model
     # base_model = XGBRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
@@ -97,7 +100,7 @@ def train_and_save(df, config):
     # Encode product_name
     ohe = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
     product_encoded_train = ohe.fit_transform(prod_train.to_frame())
-    print(product_encoded_train.shape, product_encoded_train)
+    # print(product_encoded_train.shape, product_encoded_train)
     product_encoded_test = ohe.transform(prod_test.to_frame())
 
     # # Train residual model
@@ -121,36 +124,54 @@ def train_and_save(df, config):
     final_r2 = r2_score(y_test, y_final_pred)
 
     print(final_mse, final_mae, final_r2)
+    joblib.dump(base_model, config['output']['base_model_path'])
+    joblib.dump(scaler, config['output']['base_scaler_path'])
+    joblib.dump(ohe, config['output']['residue_ohe_path'])
+    joblib.dump(residual_model, config['output']['residue_model_path'])
 
 # # === Inference Function ===
-def inference(input_df, config):
-#     model = joblib.load(config['output']['model_path'])
-#     scaler = joblib.load(config['output']['scaler_path'])
+def inference_residual(input_df, product_name, config):
+    base_model = joblib.load(config['output']['base_model_path'])
+    scaler = joblib.load(config['output']['base_scaler_path'])
+    residual_model = joblib.load(config['output']['residue_model_path'])
+    product_encoder = joblib.load(config['output']['residue_ohe_path'])
 #     pca = joblib.load(config['output']['pca_path'])
 
-#     df = preprocess_data(input_df.copy(), config)
+    df = preprocess_data(input_df.copy(), config)
 #     pca_features = config['features']['pca_inputs']
 #     scaled = scaler.transform(df[pca_features])
 #     pca_result = pca.transform(scaled)
 #     df['PCA1'] = pca_result[:, 0]
 #     df['PCA2'] = pca_result[:, 1]
-
-#     df = encode_categorical(df, config)
-#     X = df[config['features']['final']]
+    df = encode_categorical(df, config)
+    X = df[config['features']['final']]
 #     pred = model.predict(X)
 #     return pred, X
 
-    X_trait = trait_encoder(trait_df)
+    # X_trait = trait_encoder(input_df)
     # Trait prediction
-    y_base_pred = base_model.predict(X_trait)
+    y_base_pred = base_model.predict(X)
 
     # Product name one-hot encoding
+    product_name_series = pd.Series({'product_name': product_name})
     product_encoded = product_encoder.transform(product_name_series.to_frame())
+    # print('product_encoded')
+    # print(product_encoded)
 
     # Residual prediction
     y_residual_pred = residual_model.predict(product_encoded)
 
     # Final prediction
     y_final_pred = y_base_pred + y_residual_pred
+    # print('y_final_pred', y_final_pred, y_base_pred, y_residual_pred)
 
-    return y_final_pred
+    pred = [float(y[0]) for y in (y_final_pred, y_base_pred, y_residual_pred)]
+    explainer = shap.TreeExplainer(base_model)
+    shap_values = explainer.shap_values(X).astype(float).tolist()[0]
+    return {
+        'pred': pred[0],
+        'explain': {'pred': pred,
+                    'input': X.iloc[0].tolist(),
+                    'shap_values':shap_values,
+                    'feature_names': config['features']['final']}
+    }
