@@ -16,7 +16,7 @@ final0 = ["PRODUCT_AGE", "PRODUCT_encoded", "PREVIOUS_UNITS", "IS_NEW_PRODUCT", 
 id_columns = ["PRODUCT", "STATE", "LIFECYCLE"]
 
 [categorical]
-columns = ["STATE", "LIFECYCLE"]
+columns = ["PRODUCT", "STATE", "LIFECYCLE"]
 one_hot_columns_flat1 = ["STATE_California", "STATE_Illinois", "STATE_Iowa", "STATE_NewYork", "STATE_Texas", "LIFECYCLE_EXPANSION", "LIFECYCLE_INTRODUCTION", "LIFECYCLE_PHASEOUT", "LIFECYCLE_ESTABLISHED"]
 one_hot_columns_flat = ["STATE_Illinois", "STATE_Iowa", "STATE_NewYork", "STATE_Texas", "LIFECYCLE_EXPANSION", "LIFECYCLE_INTRODUCTION", "LIFECYCLE_PHASEOUT"]
 
@@ -37,3 +37,4 @@ residue_ohe_path = "data/models/residue_ohe.pkl"
 pca_path = "data/models/base_pca.pkl"
 features_path = "data/models/xgb_features.pkl"
 cat_path = "data/models/xgb_cat.pkl"
+app_path = "data/models/residual_app.pkl"

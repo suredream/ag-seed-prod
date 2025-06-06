@@ -19,11 +19,13 @@ from src.utils import load_artifacts, calculate_confidence_intervals
 from scipy.stats import gaussian_kde
 from xgboost import XGBRegressor
 import requests
-
+import joblib
 st.set_page_config(page_title="Model Analysis Dashboard", layout="wide")
 
-config = toml.load("config/xgb.toml")
-model, scaler, pca, X_train, X_test, y_train, y_test = load_artifacts(config)
+# config = toml.load("config/xgb.toml")
+config = toml.load("config/residual.toml")
+# model, scaler, pca, X_train, X_test, y_train, y_test, y_base_test, y_residual_test = load_artifacts(config)
+model, X_train, X_test, y_train, y_pred_train, y_test, y_final_pred, y_base_test, y_residual_test = joblib.load(config['output']['app_path'])
 # print(X_test.columns)
 
 # -------------------------------
@@ -61,10 +63,13 @@ if len(X_test_filtered) == 0:
     st.warning("No data matches the selected filters.")
     st.stop()
 
-# Predict
-X_test = X_test_filtered[config['features']['final']]
-y_pred_test_filtered = model.predict(X_test)
-y_pred_train = model.predict(X_train)
+# # Predict
+# X_test = X_test_filtered[config['features']['final']]
+# y_pred_test_filtered = model.predict(X_test)
+# y_pred_train = model.predict(X_train)
+y_pred_test_filtered = y_final_pred[mask]
+y_base_test_filtered = y_base_test[mask]
+y_residual_filtered = y_residual_test[mask]
 
 # -------------------------------
 # Evaluation metrics
@@ -98,8 +103,9 @@ with col1:
 
 with col2:
     st.subheader("🎯 Feature Importance")
+    X_train_fea = X_train.drop(columns=['PRODUCT', "STATE", "LIFECYCLE"])
     importance_df = pd.DataFrame({
-        'feature': X_train.columns,
+        'feature': X_train_fea.columns,
         'importance': model.feature_importances_
     }).sort_values('importance', ascending=True)
     fig_importance = px.bar(importance_df, x='importance', y='feature', orientation='h')
@@ -116,6 +122,8 @@ hist_data = np.histogram(residuals, bins=30)
 x_hist = hist_data[1]
 y_hist = hist_data[0]
 
+print(residuals)
+print(residuals.sum())
 kde = gaussian_kde(residuals)
 x_kde = np.linspace(residuals.min(), residuals.max(), 200)
 y_kde = kde(x_kde)
@@ -145,26 +153,26 @@ fig_residuals.update_layout(
 )
 st.plotly_chart(fig_residuals, use_container_width=True)
 
-# -------------------------------
-# Confidence Intervals
-# -------------------------------
-st.subheader("📊 Prediction Confidence Interval")
+# # -------------------------------
+# # Confidence Intervals
+# # -------------------------------
+# st.subheader("📊 Prediction Confidence Interval")
 
-col3, col4 = st.columns(2)
-confidence_level = col3.slider("Confidence Level", 0.8, 0.99, 0.95, 0.01)
-n_samples_to_show = col4.slider("Samples to Show", 10, 50, min(20, len(y_test_filtered)))
+# col3, col4 = st.columns(2)
+# confidence_level = col3.slider("Confidence Level", 0.8, 0.99, 0.95, 0.01)
+# n_samples_to_show = col4.slider("Samples to Show", 10, 50, min(20, len(y_test_filtered)))
 
-lower_bound, upper_bound = calculate_confidence_intervals(model, X_test, confidence=confidence_level)
-indices_to_show = sorted(np.random.choice(len(y_test_filtered), n_samples_to_show, replace=False))
+# lower_bound, upper_bound = calculate_confidence_intervals(model, X_test, confidence=confidence_level)
+# indices_to_show = sorted(np.random.choice(len(y_test_filtered), n_samples_to_show, replace=False))
 
-fig_ci = go.Figure()
-fig_ci.add_trace(go.Scatter(x=list(range(n_samples_to_show)), y=upper_bound[indices_to_show], fill=None, mode='lines'))
-fig_ci.add_trace(go.Scatter(x=list(range(n_samples_to_show)), y=lower_bound[indices_to_show], fill='tonexty', mode='lines',
-                            name=f'{confidence_level*100:.0f}% Interval', fillcolor='rgba(0,100,80,0.2)'))
-fig_ci.add_trace(go.Scatter(x=list(range(n_samples_to_show)), y=y_pred_test_filtered[indices_to_show], mode='markers+lines', name='Predicted'))
-fig_ci.add_trace(go.Scatter(x=list(range(n_samples_to_show)), y=y_test_filtered.iloc[indices_to_show], mode='markers', name='Actual'))
-fig_ci.update_layout(title='Prediction Confidence Interval', xaxis_title='Sample Index', yaxis_title='Value')
-st.plotly_chart(fig_ci, use_container_width=True)
+# fig_ci = go.Figure()
+# fig_ci.add_trace(go.Scatter(x=list(range(n_samples_to_show)), y=upper_bound[indices_to_show], fill=None, mode='lines'))
+# fig_ci.add_trace(go.Scatter(x=list(range(n_samples_to_show)), y=lower_bound[indices_to_show], fill='tonexty', mode='lines',
+#                             name=f'{confidence_level*100:.0f}% Interval', fillcolor='rgba(0,100,80,0.2)'))
+# fig_ci.add_trace(go.Scatter(x=list(range(n_samples_to_show)), y=y_pred_test_filtered[indices_to_show], mode='markers+lines', name='Predicted'))
+# fig_ci.add_trace(go.Scatter(x=list(range(n_samples_to_show)), y=y_test_filtered.iloc[indices_to_show], mode='markers', name='Actual'))
+# fig_ci.update_layout(title='Prediction Confidence Interval', xaxis_title='Sample Index', yaxis_title='Value')
+# st.plotly_chart(fig_ci, use_container_width=True)
 
 # -------------------------------
 # SHAP
@@ -176,7 +184,11 @@ def compute_shap(model, X_train, X_test):
     return explainer, explainer.shap_values(X_train), explainer.shap_values(X_test)
 
 try:
-    explainer, shap_values_train, shap_values_test = compute_shap(model, X_train, X_test)
+    X_train_fea = X_train.drop(columns=['PRODUCT', 'STATE', 'LIFECYCLE'])
+    X_test = X_test.drop(columns=['PRODUCT', 'STATE', 'LIFECYCLE'])
+    # print(X_train_fea)
+    # print(X_test.columns)
+    explainer, shap_values_train, shap_values_test = compute_shap(model, X_train_fea, X_test)
 
     col5, col6 = st.columns(2)
 
@@ -201,6 +213,8 @@ try:
         sample_idx = st.selectbox("Select Sample Index", list(range(min(20, len(X_test)))))
         sample = X_test.iloc[sample_idx]
         pred = y_pred_test_filtered[sample_idx]
+        pred1 = y_base_test_filtered[sample_idx]
+        pred2 = y_residual_filtered[sample_idx]
         actual = y_test_filtered.iloc[sample_idx]
         
         st.write("**Sample Features**")
@@ -224,49 +238,47 @@ try:
 
     with col9:
         try:
+            # get payload from page
             payload = {
                 "features": sample.values.astype(float).tolist(),
                 'names': sample.index.tolist(),
                 "shap": shap_values_test[sample_idx].astype(float).tolist(),
-                "prediction": float(pred),
+                "prediction": [float(y) for y in [pred, pred1, pred2]],
             }
-            print('payload')
-            print(payload)
+            # print('payload')
+            # print(payload)
+            # st.json(payload)
             response = requests.post(
                 "http://localhost:8000/explain_shap",
                 json=payload
             )
+            # st.json(response.json())
             explanation = response.json()["explanation"]
             st.write("**GenAI Explanation**") 
-            st.markdown(explanation, unsafe_allow_html=True)
-            # copy_code = f"""
-            #     <button onclick="navigator.clipboard.writeText(`{explanation}`); this.innerText='Copied!'">
-            #         Copy to clipboard
-            #     </button>
-            # """
-            # st.markdown(copy_code, unsafe_allow_html=True)
-
+            st.markdown(explanation)
         except Exception as e:
+            raise
             st.error(f"Explanation generation failed: {e}")
 
 except Exception as e:
+    raise
     st.error(f"SHAP computation failed: {e}")
     shap_values_test = None
 
-# -------------------------------
-# Download section
-# -------------------------------
-st.subheader("💾 Download Results")
+# # -------------------------------
+# # Download section
+# # -------------------------------
+# st.subheader("💾 Download Results")
 
 col9, col10 = st.columns(2)
-with col9:
-    df_results = pd.DataFrame({
-        "actual": y_test_filtered,
-        "predicted": y_pred_test_filtered,
-        "lower_bound": lower_bound[:len(y_test_filtered)],
-        "upper_bound": upper_bound[:len(y_test_filtered)],
-    })
-    st.download_button("Download Predictions", df_results.to_csv(index=False), "predictions.csv", "text/csv")
+# with col9:
+#     df_results = pd.DataFrame({
+#         "actual": y_test_filtered,
+#         "predicted": y_pred_test_filtered,
+#         "lower_bound": lower_bound[:len(y_test_filtered)],
+#         "upper_bound": upper_bound[:len(y_test_filtered)],
+#     })
+#     st.download_button("Download Predictions", df_results.to_csv(index=False), "predictions.csv", "text/csv")
 
 with col10:
     if shap_values_test is not None:

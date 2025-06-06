@@ -119,4 +119,8 @@ train:
 - create model
 inference: shap
 - ['pred']
-- ['explain_shap']
+- ['explain']
+
+
+为 support interactive app
+需要model, X_train, X_test, y_train, y_test 作为一个pkg
