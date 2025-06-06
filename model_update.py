@@ -55,5 +55,5 @@ base_model = joblib.load(config['output']['base_model_path'])
 input_df = pd.DataFrame([input_dict])
 pred_dict = model_dict['inference'](input_df, input_dict['PRODUCT'], config)
 explain = pred_dict['explain']
-# prompt = build_prompt(explain['input'], explain['feature_names'], explain['shap_values'], explain['pred'])
-# print(call_explain(prompt))
+prompt = build_prompt(explain['input'], explain['feature_names'], explain['shap_values'], explain['pred'])
+print(call_explain(prompt))

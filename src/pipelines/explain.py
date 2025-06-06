@@ -1,7 +1,9 @@
+import os
 import requests
+from dotenv import load_dotenv
+load_dotenv()
 
-
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL = "google/gemini-2.0-flash-001"
 
@@ -92,8 +94,6 @@ def call_explain(prompt: str) -> str:
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json"
     }
-
-
 
     data = {
         "model": MODEL,

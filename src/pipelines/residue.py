@@ -11,8 +11,6 @@ import toml
 import shap
 from sklearn.preprocessing import OneHotEncoder
 
-# label_encoder = LabelEncoder()
-
 # === Load Config ===
 config = toml.load("config/residual.toml")
 
@@ -84,9 +82,6 @@ def train_and_save_residual(df, config):
     # Split data
     X_train, X_test, y_train, y_test, prod_train, prod_test = train_test_split(
         X, y, df['PRODUCT'], test_size=0.2, random_state=42)
-    
-    # print(prod_train.head())
-    # print(type(prod_train))
 
     # Train base model
     # base_model = XGBRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
@@ -171,8 +166,6 @@ def inference_residual(input_df, product_name, config):
     # Product name one-hot encoding
     product_name_series = pd.Series({'product_name': product_name})
     product_encoded = product_encoder.transform(product_name_series.to_frame())
-    # print('product_encoded')
-    # print(product_encoded)
 
     # Residual prediction
     y_residual_pred = residual_model.predict(product_encoded)
