@@ -269,9 +269,9 @@ col9, col10 = st.columns(2)
 #         shap_df = pd.DataFrame(shap_values_test, columns=X_test.columns)
 #         st.download_button("Download SHAP Values", shap_df.to_csv(index=False), "shap_values.csv", "text/csv")
 
-df_pred = pd.read_csv('data/case_study_data.csv').groupby(['PRODUCT','STATE']).agg({'UNITS': 'mean'}).reset_index()
+df_pred = pd.read_csv('data/case_study_data_combined.csv').groupby(['PRODUCT','STATE'])[['pred','lower_bound','upper_bound']].mean().reset_index()
 # st.dataframe(df_pred.head(), use_container_width=True)
-df_pred["predicted_yield"] = df_pred["UNITS"]
+df_pred["predicted_yield"] = df_pred["pred"]
 
 pred_mask = (
     df_pred['PRODUCT'].isin(selected_products) &
@@ -281,14 +281,26 @@ pred_mask = (
 top_k = st.slider("Top K Product", 10, 30, 5)
 ranking = df_pred[pred_mask].sort_values("predicted_yield", ascending=False).head(top_k)
 ranking_sorted = ranking.sort_values("predicted_yield", ascending=True)
+# fig = go.Figure(go.Bar(
+#     x=ranking_sorted["predicted_yield"],
+#     y=ranking_sorted["PRODUCT"],
+#     orientation='h',
+#     text=ranking_sorted["predicted_yield"].round(2),
+#     textposition="auto"
+# ))
 fig = go.Figure(go.Bar(
     x=ranking_sorted["predicted_yield"],
     y=ranking_sorted["PRODUCT"],
     orientation='h',
     text=ranking_sorted["predicted_yield"].round(2),
-    textposition="auto"
+    textposition="auto",
+    error_x=dict(
+        type='data',
+        symmetric=False,
+        array=ranking_sorted["upper_bound"] - ranking_sorted["predicted_yield"],
+        arrayminus=ranking_sorted["predicted_yield"] - ranking_sorted["lower_bound"]
+    )
 ))
-
 fig.update_layout(
     title=f"Top {top_k} Product Units by Predicted Seed Production",
     xaxis_title="Predicted Seed Production",

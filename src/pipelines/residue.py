@@ -127,16 +127,22 @@ def train_and_save_residual(df, config):
 
     # Uncertainty
     residual_target = np.abs(residuals_train)
+    z_score = norm.ppf(0.975)
 
     # 特征输入可以使用与 residual_model 相同的 product_encoded_train 或 X_train
     residual_var_model = GradientBoostingRegressor()
     residual_var_model.fit(product_encoded_train, residual_target)
     predicted_residual_std = residual_var_model.predict(product_encoded_test)
-    z_score = norm.ppf(0.975)
+    
     lower_bound = y_final_pred - z_score * predicted_residual_std
     lower_bound = np.maximum(lower_bound, 0)
     upper_bound = y_final_pred + z_score * predicted_residual_std
 
+    predicted_residual_std_train = residual_var_model.predict(product_encoded_train)
+    
+    lower_bound_train = y_pred_train - z_score * predicted_residual_std_train
+    lower_bound_train = np.maximum(lower_bound_train, 0)
+    upper_bound_train = y_pred_train + z_score * predicted_residual_std_train
 
     print(final_mse, final_mae, final_r2)
     joblib.dump(base_model, config['output']['base_model_path'])
@@ -154,8 +160,22 @@ def train_and_save_residual(df, config):
     # Evaluation
     model_eval(X_train, X_test, y_train, y_test, y_pred_train, y_final_pred)
 
+    data_train = X_train.copy()
+    data_train['pred'] = y_pred_train
+    data_train['lower_bound'] = lower_bound_train
+    data_train['upper_bound'] = upper_bound_train
 
-
+    data_test = X_test.copy()
+    data_test['pred'] = y_final_pred
+    data_test['lower_bound'] = lower_bound
+    data_test['upper_bound'] = upper_bound
+    print(data_train.shape)
+    print(data_train.columns)
+    print(data_test.shape)
+    print(data_test.columns)
+    df_combined = pd.concat([data_train, data_test], axis=0, ignore_index=True)
+    print(df_combined.shape)
+    df_combined.to_csv('data/case_study_data_combined.csv', index=False)
     # ------------------------
     # Step 4: 返回预测区间结果
     # ------------------------
@@ -167,7 +187,7 @@ def train_and_save_residual(df, config):
         'upper_bound': upper_bound
     })
 
-    print(prediction_interval_df.shape)
+    # print(prediction_interval_df.shape)
 
 # # === Inference Function ===
 def inference_residual(input_df, product_name, config):
