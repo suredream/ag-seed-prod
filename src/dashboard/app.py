@@ -8,7 +8,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 import streamlit as st
 import pandas as pd
 import numpy as np
-import json
 import toml
 import shap
 import matplotlib.pyplot as plt
@@ -17,7 +16,6 @@ import plotly.express as px
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from src.utils import load_artifacts, calculate_confidence_intervals
 from scipy.stats import gaussian_kde
-from xgboost import XGBRegressor
 import requests
 import joblib
 st.set_page_config(page_title="Model Analysis Dashboard", layout="wide")
@@ -74,10 +72,10 @@ y_residual_filtered = y_residual_test[mask]
 # -------------------------------
 # Evaluation metrics
 # -------------------------------
-col1, col2 = st.columns(2)
+col1, col2, col22 = st.columns([1.5, 2, 2])
 
 with col1:
-    st.subheader("📈 Evaluation Metrics")
+    st.subheader("📈 Eval Metrics")
     train_rmse = np.sqrt(mean_squared_error(y_train, y_pred_train))
     train_r2 = r2_score(y_train, y_pred_train)
     train_mae = mean_absolute_error(y_train, y_pred_train)
@@ -93,65 +91,51 @@ with col1:
     })
     st.dataframe(metrics_df, use_container_width=True)
 
+with col2:
     fig_scatter = go.Figure()
     fig_scatter.add_trace(go.Scatter(x=y_test_filtered, y=y_pred_test_filtered, mode='markers', name='Test'))
     min_val = min(y_test_filtered.min(), y_pred_test_filtered.min())
     max_val = max(y_test_filtered.max(), y_pred_test_filtered.max())
     fig_scatter.add_trace(go.Scatter(x=[min_val, max_val], y=[min_val, max_val], mode='lines', name='Perfect'))
-    fig_scatter.update_layout(title='Predicted vs Actual', xaxis_title='Actual', yaxis_title='Predicted')
+    fig_scatter.update_layout(title='Predicted vs Actual', xaxis_title='Actual', yaxis_title='Predicted', showlegend=False)
     st.plotly_chart(fig_scatter, use_container_width=True)
 
-with col2:
-    st.subheader("🎯 Feature Importance")
-    X_train_fea = X_train.drop(columns=['PRODUCT', "STATE", "LIFECYCLE"])
-    importance_df = pd.DataFrame({
-        'feature': X_train_fea.columns,
-        'importance': model.feature_importances_
-    }).sort_values('importance', ascending=True)
-    fig_importance = px.bar(importance_df, x='importance', y='feature', orientation='h')
-    fig_importance.update_layout(title='Feature Importance', height=400)
-    st.plotly_chart(fig_importance, use_container_width=True)
+    residuals = y_test_filtered - y_pred_test_filtered
+    hist_data = np.histogram(residuals, bins=30)
+    x_hist = hist_data[1]
+    y_hist = hist_data[0]
 
-# -------------------------------
-# Residual plot
-# -------------------------------
-st.subheader("📉 Residual Distribution")
 
-residuals = y_test_filtered - y_pred_test_filtered
-hist_data = np.histogram(residuals, bins=30)
-x_hist = hist_data[1]
-y_hist = hist_data[0]
+with col22:
+    kde = gaussian_kde(residuals)
+    x_kde = np.linspace(residuals.min(), residuals.max(), 200)
+    y_kde = kde(x_kde)
 
-print(residuals)
-print(residuals.sum())
-kde = gaussian_kde(residuals)
-x_kde = np.linspace(residuals.min(), residuals.max(), 200)
-y_kde = kde(x_kde)
-
-fig_residuals = go.Figure()
-fig_residuals.add_trace(go.Bar(
-    x=x_hist[:-1],
-    y=y_hist,
-    width=np.diff(x_hist),
-    name='Histogram',
-    marker=dict(color='lightblue'),
-    opacity=0.6
-))
-fig_residuals.add_trace(go.Scatter(
-    x=x_kde,
-    y=y_kde * len(residuals) * np.diff(x_hist)[0],
-    mode='lines',
-    name='KDE',
-    line=dict(color='darkblue')
-))
-fig_residuals.update_layout(
-    title="Residual Distribution (Actual - Predicted)",
-    xaxis_title="Residuals",
-    yaxis_title="Frequency",
-    bargap=0.05,
-    height=400
-)
-st.plotly_chart(fig_residuals, use_container_width=True)
+    fig_residuals = go.Figure()
+    fig_residuals.add_trace(go.Bar(
+        x=x_hist[:-1],
+        y=y_hist,
+        width=np.diff(x_hist),
+        name='Histogram',
+        marker=dict(color='lightblue'),
+        opacity=0.6
+    ))
+    fig_residuals.add_trace(go.Scatter(
+        x=x_kde,
+        y=y_kde * len(residuals) * np.diff(x_hist)[0],
+        mode='lines',
+        name='KDE',
+        line=dict(color='darkblue')
+    ))
+    fig_residuals.update_layout(
+        title="Residual Distribution",
+        xaxis_title="Residuals",
+        yaxis_title="Frequency",
+        showlegend=False,
+        bargap=0.05,
+        height=400
+    )
+    st.plotly_chart(fig_residuals, use_container_width=True)
 
 # # -------------------------------
 # # Confidence Intervals
@@ -177,7 +161,9 @@ st.plotly_chart(fig_residuals, use_container_width=True)
 # -------------------------------
 # SHAP
 # -------------------------------
-st.subheader("🔍 SHAP Interpretability")
+
+
+st.subheader("🔍 Interpretability")
 
 def compute_shap(model, X_train, X_test):
     explainer = shap.TreeExplainer(model)
@@ -185,9 +171,8 @@ def compute_shap(model, X_train, X_test):
 
 try:
     X_train_fea = X_train.drop(columns=['PRODUCT', 'STATE', 'LIFECYCLE'])
-    X_test = X_test.drop(columns=['PRODUCT', 'STATE', 'LIFECYCLE'])
-    # print(X_train_fea)
-    # print(X_test.columns)
+    X_test_bounds = X_test.copy()
+    X_test = X_test.drop(columns=['PRODUCT', 'STATE', 'LIFECYCLE','lower_bound', 'upper_bound'])
     explainer, shap_values_train, shap_values_test = compute_shap(model, X_train_fea, X_test)
 
     col5, col6 = st.columns(2)
@@ -207,21 +192,23 @@ try:
         plt.close()
 
     # Single sample
-    st.subheader("🎯 SHAP Waterfall (Single Sample)")
+    st.subheader("🎯 Single Prediction")
     col7, col8, col9 = st.columns([1, 2, 2])
     with col7:
-        sample_idx = st.selectbox("Select Sample Index", list(range(min(20, len(X_test)))))
+        product_options = X_test_bounds['PRODUCT'].unique().tolist() 
+        sample_select = st.selectbox("Select Sample Product", product_options) 
+        sample_idx = product_options.index(sample_select)
         sample = X_test.iloc[sample_idx]
         pred = y_pred_test_filtered[sample_idx]
         pred1 = y_base_test_filtered[sample_idx]
         pred2 = y_residual_filtered[sample_idx]
         actual = y_test_filtered.iloc[sample_idx]
+        uplimit = X_test_bounds['upper_bound'].iloc[sample_idx]
+        lowlimit = X_test_bounds['lower_bound'].iloc[sample_idx]
         
         st.write("**Sample Features**")
         st.dataframe(pd.DataFrame({'Feature': sample.index, 'Value': sample.values}))
-        st.metric("Prediction", f"{pred:.3f}")
-        st.metric("Actual", f"{actual:.3f}")
-        st.metric("Error", f"{abs(pred - actual):.3f}")
+
 
     with col8:
         st.write("**SHAP Waterfall Plot**")
@@ -235,33 +222,30 @@ try:
         )
         st.pyplot(fig3)
         plt.close()
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Prediction", f"{pred:.3f}")
+        c2.metric("Lower", f"{lowlimit:.3f}")
+        c3.metric("Upper", f"{uplimit:.3f}")
 
     with col9:
         try:
-            # get payload from page
             payload = {
                 "features": sample.values.astype(float).tolist(),
                 'names': sample.index.tolist(),
                 "shap": shap_values_test[sample_idx].astype(float).tolist(),
                 "prediction": [float(y) for y in [pred, pred1, pred2]],
             }
-            # print('payload')
-            # print(payload)
-            # st.json(payload)
             response = requests.post(
                 "http://localhost:8000/explain_shap",
                 json=payload
             )
-            # st.json(response.json())
             explanation = response.json()["explanation"]
             st.write("**GenAI Explanation**") 
             st.markdown(explanation)
         except Exception as e:
-            raise
             st.error(f"Explanation generation failed: {e}")
 
 except Exception as e:
-    raise
     st.error(f"SHAP computation failed: {e}")
     shap_values_test = None
 
@@ -280,10 +264,41 @@ col9, col10 = st.columns(2)
 #     })
 #     st.download_button("Download Predictions", df_results.to_csv(index=False), "predictions.csv", "text/csv")
 
-with col10:
-    if shap_values_test is not None:
-        shap_df = pd.DataFrame(shap_values_test, columns=X_test.columns)
-        st.download_button("Download SHAP Values", shap_df.to_csv(index=False), "shap_values.csv", "text/csv")
+# with col10:
+#     if shap_values_test is not None:
+#         shap_df = pd.DataFrame(shap_values_test, columns=X_test.columns)
+#         st.download_button("Download SHAP Values", shap_df.to_csv(index=False), "shap_values.csv", "text/csv")
+
+df_pred = pd.read_csv('data/case_study_data.csv').groupby(['PRODUCT','STATE']).agg({'UNITS': 'mean'}).reset_index()
+# st.dataframe(df_pred.head(), use_container_width=True)
+df_pred["predicted_yield"] = df_pred["UNITS"]
+
+pred_mask = (
+    df_pred['PRODUCT'].isin(selected_products) &
+    df_pred['STATE'].isin(selected_states)
+)
+
+top_k = st.slider("Top K Product", 10, 30, 5)
+ranking = df_pred[pred_mask].sort_values("predicted_yield", ascending=False).head(top_k)
+ranking_sorted = ranking.sort_values("predicted_yield", ascending=True)
+fig = go.Figure(go.Bar(
+    x=ranking_sorted["predicted_yield"],
+    y=ranking_sorted["PRODUCT"],
+    orientation='h',
+    text=ranking_sorted["predicted_yield"].round(2),
+    textposition="auto"
+))
+
+fig.update_layout(
+    title=f"Top {top_k} Product Units by Predicted Seed Production",
+    xaxis_title="Predicted Seed Production",
+    yaxis_title="PRODUCT",
+    height=400,
+    margin=dict(l=100, r=40, t=60, b=40)
+)
+# st.dataframe(ranking_sorted, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
+
 
 # -------------------------------
 # Footer

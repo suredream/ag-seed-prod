@@ -6,10 +6,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from xgboost import XGBRegressor
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import toml
 from sklearn.preprocessing import LabelEncoder
-
+from src.utils import model_eval
 label_encoder = LabelEncoder()
 
 # === Load Config ===
@@ -31,7 +30,6 @@ def preprocess_data(df, config):
     df['AGE_X_PROTECTION'] = df['PRODUCT_AGE'] * df['PROTECTION_SCORE']
     df['HEIGHT_X_MATURITY'] = df['PLANT_HEIGHT'] * df['RELATIVE_MATURITY']
     df['IS_NEW_PRODUCT'] = (df['PRODUCT_AGE'] <= 2).astype(int)
-
 
     # df['UNITS_NORM_BY_PRODUCT'] = df.groupby('PRODUCT')['UNITS'].transform(lambda x: (x - x.mean()) / (x.std() + 1e-5))
     df = df.sort_values(by=['STATE', 'PRODUCT', 'SALESYEAR'])
@@ -67,27 +65,19 @@ def encode_categorical(df, config):
 
 def train_and_save(df, config):
     df = preprocess_data(df, config)
-    # print(df.columns.to_list())
     df, scaler, pca = generate_pca_features(df, config)
-    # df = encode_categorical(df, config)
     df_cat = df[config['categorical']['columns']]
     df = pd.get_dummies(df, columns=config['categorical']['columns'])
     df = pd.concat([df, df_cat], axis=1)
 
     X = df[config['features']['final']]
     X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
-    # y = df[config['target']['column']]#.squeeze()
     y = df['UNITS']
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=df['STATE'])
     model = XGBRegressor(**config['xgb_params'])
-    # print(type(X_train.head()))
-    # print(type(y_train.head()))
-    # print(X.dtypes[X.dtypes == 'object'], X.shape, y.shape)
-    # print(X.columns.to_list())
-    print(X.index)
     model.fit(X_train, y_train)
+
 
     # Save artifacts
     joblib.dump(model, config['output']['model_path'])
@@ -97,10 +87,9 @@ def train_and_save(df, config):
     joblib.dump(df, config['output']['cat_path'])
 
     # Evaluation
-    y_pred = model.predict(X_test)
-    print("MSE:", mean_squared_error(y_test, y_pred))
-    print("MAE:", mean_absolute_error(y_test, y_pred))
-    print("R2:", r2_score(y_test, y_pred))
+    y_pred_train = model.predict(X_train)
+    y_pred_test = model.predict(X_test)
+    model_eval(X_train, X_test, y_train, y_test, y_pred_train, y_pred_test)
 
 # === Inference Function ===
 def inference(input_df, config):

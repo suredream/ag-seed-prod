@@ -21,7 +21,7 @@ def build_prompt(feature_series, names, shap_vals, predictions: list) -> str:
 
 You are a business analyst helping stakeholders understand why a machine learning model predicted a specific value for a seed product.
 
-Given the model prediction and SHAP values, explain the result in clear, natural business language, suitable for non-technical readers in agriculture or seed product development.
+Given the model prediction and SHAP values, explain the result in clear, concise natural business language, suitable for non-technical readers in agriculture or seed product development.
 
 Predictions:
 - Trait-based model predicted {predictions[1]:.2f} units.
@@ -46,7 +46,7 @@ Use business-relevant logic (e.g., "products with stronger protection tend to pe
 
 Avoid technical jargon like “SHAP” or “baseline”.
 
-Conclude with a summary insight on the sample’s value profile.
+Conclude with 1-liner insight on the sample’s value profile.
 
 """
     return prompt

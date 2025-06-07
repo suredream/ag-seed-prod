@@ -6,10 +6,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from xgboost import XGBRegressor
+from sklearn.ensemble import GradientBoostingRegressor 
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import toml
 import shap
+from src.utils import model_eval
 from sklearn.preprocessing import OneHotEncoder
+from scipy.stats import norm
 
 # === Load Config ===
 config = toml.load("config/residual.toml")
@@ -32,15 +35,14 @@ def preprocess_data(df, config):
     df['IS_NEW_PRODUCT'] = (df['PRODUCT_AGE'] <= 2).astype(int)
 
 
-    # df['UNITS_NORM_BY_PRODUCT'] = df.groupby('PRODUCT')['UNITS'].transform(lambda x: (x - x.mean()) / (x.std() + 1e-5))
-    # df = df.sort_values(by=['STATE', 'PRODUCT', 'SALESYEAR'])
-
     # # 添加上一年的 UNITS（按 STATE+PRODUCT 分组后向下移动一行）
-    # df['PREVIOUS_UNITS'] = (
-    #     df.groupby(['STATE', 'PRODUCT'])['UNITS']
-    #     .shift(1)
-    # )
-    # df['PREVIOUS_UNITS'] = df['PREVIOUS_UNITS'].fillna(0)
+    df['UNITS_NORM_BY_PRODUCT'] = df.groupby('PRODUCT')['UNITS'].transform(lambda x: (x - x.mean()) / (x.std() + 1e-5))
+    df = df.sort_values(by=['STATE', 'PRODUCT', 'SALESYEAR'])
+    df['PREVIOUS_UNITS'] = (
+        df.groupby(['STATE', 'PRODUCT'])['UNITS']
+        .shift(1)
+    )
+    df['PREVIOUS_UNITS'] = df['PREVIOUS_UNITS'].fillna(0)
 
     return df
 
@@ -81,7 +83,7 @@ def train_and_save_residual(df, config):
     # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     # Split data
     X_train, X_test, y_train, y_test, prod_train, prod_test = train_test_split(
-        X, y, df['PRODUCT'], test_size=0.2, random_state=42)
+        X, y, df['PRODUCT'], test_size=0.2, random_state=42, stratify=df['STATE'])
 
     # Train base model
     # base_model = XGBRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
@@ -123,22 +125,49 @@ def train_and_save_residual(df, config):
     final_mae = mean_absolute_error(y_test, y_final_pred)
     final_r2 = r2_score(y_test, y_final_pred)
 
+    # Uncertainty
+    residual_target = np.abs(residuals_train)
+
+    # 特征输入可以使用与 residual_model 相同的 product_encoded_train 或 X_train
+    residual_var_model = GradientBoostingRegressor()
+    residual_var_model.fit(product_encoded_train, residual_target)
+    predicted_residual_std = residual_var_model.predict(product_encoded_test)
+    z_score = norm.ppf(0.975)
+    lower_bound = y_final_pred - z_score * predicted_residual_std
+    lower_bound = np.maximum(lower_bound, 0)
+    upper_bound = y_final_pred + z_score * predicted_residual_std
+
+
     print(final_mse, final_mae, final_r2)
     joblib.dump(base_model, config['output']['base_model_path'])
     joblib.dump(scaler, config['output']['base_scaler_path'])
     joblib.dump(ohe, config['output']['residue_ohe_path'])
     joblib.dump(residual_model, config['output']['residue_model_path'])
 
-    # df['y_final_pred'] = y_final_pred
-    # df['y_base_pred'] = y_base_pred
-    # df['y_residual_pred'] = y_residual_pred
-    print(y_final_pred.shape, X_test.shape)
     X_train = pd.concat([X_train, df_cat], axis=1, join='inner')
     X_test = pd.concat([X_test, df_cat], axis=1, join='inner')
+    X_test['lower_bound'] = lower_bound
+    X_test['upper_bound'] = upper_bound
+
     joblib.dump((base_model, X_train, X_test, y_train, y_pred_train, y_test, y_final_pred, y_base_pred_test, y_residual_pred_test), config['output']['app_path'])
-    # print(X_train.columns)
-    # print(X_train.index)
-    print(y_final_pred.shape, X_test.shape)
+
+    # Evaluation
+    model_eval(X_train, X_test, y_train, y_test, y_pred_train, y_final_pred)
+
+
+
+    # ------------------------
+    # Step 4: 返回预测区间结果
+    # ------------------------
+
+    prediction_interval_df = pd.DataFrame({
+        'y_pred': y_final_pred,
+        'predicted_std': predicted_residual_std,
+        'lower_bound': lower_bound,
+        'upper_bound': upper_bound
+    })
+
+    print(prediction_interval_df.shape)
 
 # # === Inference Function ===
 def inference_residual(input_df, product_name, config):

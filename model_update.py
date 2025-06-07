@@ -9,7 +9,8 @@ import joblib
 
 # === 命令行参数解析 ===
 parser = argparse.ArgumentParser(description='Train and predict model.')
-parser.add_argument('--model', type=str, default='residual', choices=['residual', 'xgb'], help='Specify the model type (residual or xgb).')
+# parser.add_argument('--model', type=str, default='residual', choices=['residual', 'xgb'], help='Specify the model type (residual or xgb).')
+parser.add_argument('--model', type=str, default='xgb', choices=['residual', 'xgb'], help='Specify the model type (residual or xgb).')
 parser.add_argument('--pred_only', default=False, action='store_false', help='Only perform prediction, skip training.')
 args = parser.parse_args()
 # print(args)
@@ -34,26 +35,26 @@ if not args.pred_only:
     print(f"✅ {model_type} 模型训练完成，已保存模型与PCA/Scaler 文件。")
 
 
-# === 示例输入：来自一个 dict ===
-input_dict = {
-    'PRODUCT': 'P123',
-    'SALESYEAR': 2024,
-    'RELEASE_YEAR': 2020,
-    'DISEASE_RESISTANCE': 3,
-    'INSECT_RESISTANCE': 4,
-    'PROTECTION': 2,
-    'DROUGHT_TOLERANCE': 5.0,
-    'BRITTLE_STALK': None,        # 可缺失
-    'PLANT_HEIGHT': 6.0,
-    'RELATIVE_MATURITY': 3,
-    'STATE': 'Texas',
-    'LIFECYCLE': 'EXPANSION'
-}
+# # === 示例输入：来自一个 dict ===
+# input_dict = {
+#     'PRODUCT': 'P123',
+#     'SALESYEAR': 2024,
+#     'RELEASE_YEAR': 2020,
+#     'DISEASE_RESISTANCE': 3,
+#     'INSECT_RESISTANCE': 4,
+#     'PROTECTION': 2,
+#     'DROUGHT_TOLERANCE': 5.0,
+#     'BRITTLE_STALK': None,        # 可缺失
+#     'PLANT_HEIGHT': 6.0,
+#     'RELATIVE_MATURITY': 3,
+#     'STATE': 'Texas',
+#     'LIFECYCLE': 'EXPANSION'
+# }
 
-base_model = joblib.load(config['output']['base_model_path'])
+# base_model = joblib.load(config['output']['base_model_path'])
 
-input_df = pd.DataFrame([input_dict])
-pred_dict = model_dict['inference'](input_df, input_dict['PRODUCT'], config)
-explain = pred_dict['explain']
-prompt = build_prompt(explain['input'], explain['feature_names'], explain['shap_values'], explain['pred'])
-print(call_explain(prompt))
+# input_df = pd.DataFrame([input_dict])
+# pred_dict = model_dict['inference'](input_df, input_dict['PRODUCT'], config)
+# explain = pred_dict['explain']
+# prompt = build_prompt(explain['input'], explain['feature_names'], explain['shap_values'], explain['pred'])
+# print(call_explain(prompt))
