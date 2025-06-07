@@ -32,7 +32,7 @@ def preprocess_data(df, config):
     df['PRODUCT_AGE'] = df['SALESYEAR'] - df['RELEASE_YEAR']
     df['AGE_X_PROTECTION'] = df['PRODUCT_AGE'] * df['PROTECTION_SCORE']
     df['HEIGHT_X_MATURITY'] = df['PLANT_HEIGHT'] * df['RELATIVE_MATURITY']
-    df['IS_NEW_PRODUCT'] = (df['PRODUCT_AGE'] <= 2).astype(int)
+    # df['IS_NEW_PRODUCT'] = (df['PRODUCT_AGE'] <= 2).astype(int)
 
 
     # # 添加上一年的 UNITS（按 STATE+PRODUCT 分组后向下移动一行）
