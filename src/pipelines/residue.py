@@ -101,7 +101,7 @@ def train_and_save_residual(df, config):
     product_encoded_test = ohe.transform(prod_test.to_frame())
 
     # # Train residual model
-    residual_model = XGBRegressor(n_estimators=50, max_depth=3, learning_rate=0.1, random_state=42)
+    residual_model = XGBRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
     residual_model.fit(product_encoded_train, residuals_train)
 
     # # Inference

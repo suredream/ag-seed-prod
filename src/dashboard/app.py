@@ -29,7 +29,7 @@ model, X_train, X_test, y_train, y_pred_train, y_test, y_final_pred, y_base_test
 # -------------------------------
 # Group filter selectors
 # -------------------------------
-st.sidebar.header("🔎 SODA dashboard")
+st.sidebar.header("🔎 SODA Dashboard")
 
 # Ensure required columns exist
 required_columns = ['STATE', 'LIFECYCLE']
@@ -75,7 +75,7 @@ y_residual_filtered = y_residual_test[mask]
 col1, col2, col22 = st.columns([1.5, 2, 2])
 
 with col1:
-    st.subheader("📈 Model Eval Metrics")
+    st.subheader("📈 [For Internal User]Model Eval Metrics")
     train_rmse = np.sqrt(mean_squared_error(y_train, y_pred_train))
     train_r2 = r2_score(y_train, y_pred_train)
     train_mae = mean_absolute_error(y_train, y_pred_train)
@@ -180,7 +180,7 @@ with col22:
 # -------------------------------
 
 
-st.subheader("🔍 Feature Impact")
+st.subheader("🔍 [For Internal User]Feature Impact")
 
 def compute_shap(model, X_train, X_test):
     explainer = shap.TreeExplainer(model)
@@ -218,7 +218,7 @@ try:
         df_pred['STATE'].isin(selected_states)
     )
 
-    st.subheader("🔍 Top K Product")
+    st.subheader("🔍 [For External User]Top Products (Error range provided for the reference to cost control)") 
     top_k = st.slider("", 5, 20, 5)
     ranking = df_pred[pred_mask].sort_values("predicted_yield", ascending=False).head(top_k)
     ranking_sorted = ranking.sort_values("predicted_yield", ascending=True)
@@ -254,7 +254,7 @@ try:
 
 
     # Single sample
-    st.subheader("🎯 Single Prediction & Explanation")
+    st.subheader("🎯 [For External User]Single Prediction & Explanation")
     col7, col8, col9 = st.columns([1, 2, 1])
     with col7:
         product_options = X_test_bounds['PRODUCT'].unique().tolist() 
