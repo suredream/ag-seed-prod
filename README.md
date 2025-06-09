@@ -36,9 +36,9 @@ R2         0.8131          0.6748
 
 residual[dummy model]
 Metric     Train           Test           
-MSE        14.3249         34.7783        
-MAE        2.1369          3.3396         
-R2         0.8357          0.7003   
+MSE        16.8397         35.8759
+MAE        2.3359          3.3777
+R2         0.8069          0.6908
 ```
 
 ## Installation
