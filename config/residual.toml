@@ -21,10 +21,10 @@ one_hot_columns_flat1 = ["STATE_California", "STATE_Illinois", "STATE_Iowa", "ST
 one_hot_columns_flat = ["STATE_Illinois", "STATE_Iowa", "STATE_NewYork", "STATE_Texas", "LIFECYCLE_EXPANSION", "LIFECYCLE_INTRODUCTION", "LIFECYCLE_PHASEOUT"]
 
 [xgb_params]
-n_estimators = 200
-max_depth = 5
-learning_rate = 0.05
-subsample = 0.8
+n_estimators = 300
+max_depth = 7
+learning_rate = 0.01
+subsample = 0.5
 
 [input]
 data_path = "data/case_study_data.csv"

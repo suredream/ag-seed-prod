@@ -41,7 +41,6 @@ def model_eval(X_train, X_test, y_train, y_test, y_pred_train, y_pred_test):
         metrics_dict: Dictionary containing MSE, MAE, R2 for train and test
     """
 
-    # 指标计算
     metrics_dict = {
         "MSE": {
             "train": mean_squared_error(y_train, y_pred_train),
@@ -57,10 +56,7 @@ def model_eval(X_train, X_test, y_train, y_test, y_pred_train, y_pred_test):
         }
     }
 
-    # 打印格式化表格
     print("{:<10} {:<15} {:<15}".format("Metric", "Train", "Test"))
     for metric, values in metrics_dict.items():
         print("{:<10} {:<15.4f} {:<15.4f}".format(metric, values["train"], values["test"]))
-    print(X_train.columns)
-    print(X_train.shape)
     return metrics_dict

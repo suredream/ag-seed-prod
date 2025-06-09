@@ -4,7 +4,7 @@ import pandas as pd
 
 from src.utils import load_artifacts, calculate_confidence_intervals
 from src.pipelines.xgb import train_and_save, inference
-from src.pipelines.explain import call_explain, build_prompt  # 确保该模块已保存为 train_model.py
+from src.pipelines.explain import call_explain, build_prompt
 
 
 app = FastAPI(title="Model Prediction API", description="Predict values and return confidence intervals")
@@ -23,14 +23,14 @@ class PredictResponse(BaseModel):
     # lower_bound: list[float]
     # upper_bound: list[float]
 
-@app.post("/predict", response_model=PredictResponse)
-def predict(req: PredictRequest):
-    X_input = pd.DataFrame([req.data])#, columns=feature_cols)
-    preds, X = inference(X_input, config)
-    # lower, upper = calculate_confidence_intervals(model, X, confidence=req.confidence)
-    return {
-        "prediction": preds.tolist(),
-    }
+# @app.post("/predict", response_model=PredictResponse)
+# def predict(req: PredictRequest):
+#     X_input = pd.DataFrame([req.data])#, columns=feature_cols)
+#     preds, X = inference(X_input, config)
+#     # lower, upper = calculate_confidence_intervals(model, X, confidence=req.confidence)
+#     return {
+#         "prediction": preds.tolist(),
+#     }
 
 @app.post("/explain_shap")
 def explain_shap(req: ShapRequest):

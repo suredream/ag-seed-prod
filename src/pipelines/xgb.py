@@ -31,10 +31,9 @@ def preprocess_data(df, config):
     df['HEIGHT_X_MATURITY'] = df['PLANT_HEIGHT'] * df['RELATIVE_MATURITY']
     df['IS_NEW_PRODUCT'] = (df['PRODUCT_AGE'] <= 2).astype(int)
 
-    # df['UNITS_NORM_BY_PRODUCT'] = df.groupby('PRODUCT')['UNITS'].transform(lambda x: (x - x.mean()) / (x.std() + 1e-5))
+    # Feature Engineering: PREVIOUS_UNITS
+    df['UNITS_NORM_BY_PRODUCT'] = df.groupby('PRODUCT')['UNITS'].transform(lambda x: (x - x.mean()) / (x.std() + 1e-5))
     df = df.sort_values(by=['STATE', 'PRODUCT', 'SALESYEAR'])
-
-    # 添加上一年的 UNITS（按 STATE+PRODUCT 分组后向下移动一行）
     df['PREVIOUS_UNITS'] = (
         df.groupby(['STATE', 'PRODUCT'])['UNITS']
         .shift(1)

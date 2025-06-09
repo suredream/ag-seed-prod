@@ -307,6 +307,37 @@ try:
         except Exception as e:
             st.error(f"Explanation generation failed: {e}")
 
+        # action icon
+        icon_bar = """
+        <style>
+        .icon-bar {
+            display: flex;
+            gap: 0px; /* 无间距 */
+        }
+        .icon-button {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 6px;
+        }
+        .icon-button:hover {
+            background-color: #eee;
+            border-radius: 5px;
+        }
+        </style>
+
+        <div class="icon-bar">
+            <button class="icon-button" title="Copy">📋</button>
+            <button class="icon-button" title="Good">👍</button>
+            <button class="icon-button" title="Bad">👎</button>
+            <button class="icon-button" title="Audio">🔊</button>
+            <button class="icon-button" title="Add to Favorites">➕</button>
+            <button class="icon-button" title="Comment">✏️</button>
+        </div>
+        """
+        st.markdown(icon_bar, unsafe_allow_html=True)
+
 except Exception as e:
     st.error(f"SHAP computation failed: {e}")
     shap_values_test = None

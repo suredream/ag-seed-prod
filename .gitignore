@@ -9,8 +9,6 @@ wheels/
 # Virtual environments
 .venv
 docs
-data
 *.db
-notebooks
 .DS_Store
 obsolete/

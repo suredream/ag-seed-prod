@@ -35,7 +35,7 @@ def preprocess_data(df, config):
     # df['IS_NEW_PRODUCT'] = (df['PRODUCT_AGE'] <= 2).astype(int)
 
 
-    # # 添加上一年的 UNITS（按 STATE+PRODUCT 分组后向下移动一行）
+    # Feature Engineering: PREVIOUS_UNITS
     df['UNITS_NORM_BY_PRODUCT'] = df.groupby('PRODUCT')['UNITS'].transform(lambda x: (x - x.mean()) / (x.std() + 1e-5))
     df = df.sort_values(by=['STATE', 'PRODUCT', 'SALESYEAR'])
     df['PREVIOUS_UNITS'] = (
@@ -85,8 +85,51 @@ def train_and_save_residual(df, config):
     X_train, X_test, y_train, y_test, prod_train, prod_test = train_test_split(
         X, y, df['PRODUCT'], test_size=0.2, random_state=42, stratify=df['STATE'])
 
+
+    # xgboost: grid search for tuning
+    if False:  # set to True to enable grid search
+        from sklearn.model_selection import GridSearchCV
+
+
+        param_grid = {
+            'n_estimators': [200, 250, 300, 400, 500],
+            'max_depth': [3,4, 5, 6, 7, 8],
+            'learning_rate': [0.01, 0.05, 0.1],
+            'subsample': [0.5, 0.6, 0.7, 0.8]
+        }
+        xgb_model_base = XGBRegressor(random_state=42)
+
+        # GridSearchCV
+        grid_search = GridSearchCV(
+            estimator=xgb_model_base,
+            param_grid=param_grid,
+            scoring='neg_mean_squared_error',
+            cv=3,
+            verbose=1,
+            n_jobs=-1
+        )
+
+        # train
+        grid_search.fit(X_train, y_train)
+
+        # 最佳模型预测
+        best_model = grid_search.best_estimator_
+        y_pred_best = best_model.predict(X_test)
+
+        # eval
+        mse_best = mean_squared_error(y_test, y_pred_best)
+        r2_best = r2_score(y_test, y_pred_best)
+        mae_best = mean_absolute_error(y_test, y_pred_best)
+        print('grid_search result', best_model)
+        print(grid_search.best_params_)
+        print('mae_best', mae_best)
+        print('mse_best', mse_best)
+        print('r2_best', r2_best)
+        raise
+
     # Train base model
-    # base_model = XGBRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
+    # apply best params from grid search directly
+    print('xgb_params', config['xgb_params'])
     base_model = XGBRegressor(**config['xgb_params'])
     base_model.fit(X_train, y_train)
 
@@ -100,7 +143,7 @@ def train_and_save_residual(df, config):
     # print(product_encoded_train.shape, product_encoded_train)
     product_encoded_test = ohe.transform(prod_test.to_frame())
 
-    # # Train residual model
+    # # Train dummy residual model
     residual_model = XGBRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
     residual_model.fit(product_encoded_train, residuals_train)
 
@@ -108,11 +151,15 @@ def train_and_save_residual(df, config):
     y_base_pred_test = base_model.predict(X_test)
     y_residual_pred_test = residual_model.predict(product_encoded_test)
     y_final_pred = y_base_pred_test + y_residual_pred_test
+    # temporarily set negative predictions to zero
+    y_final_pred = np.maximum(y_final_pred, 0)
 
     # # Inference train dataset
     y_base_pred_train = base_model.predict(X_train)
     y_residual_pred_train = residual_model.predict(product_encoded_train)
     y_pred_train = y_base_pred_train + y_residual_pred_train
+    # temporarily set negative predictions to zero
+    y_pred_train = np.maximum(y_pred_train, 0)
 
     # Compute metrics
     base_mse = mean_squared_error(y_test, y_base_pred_test)
@@ -129,7 +176,7 @@ def train_and_save_residual(df, config):
     residual_target = np.abs(residuals_train)
     z_score = norm.ppf(0.975)
 
-    # 特征输入可以使用与 residual_model 相同的 product_encoded_train 或 X_train
+    # Use GradientBoostingRegressor to build a model for uncertainty estimation
     residual_var_model = GradientBoostingRegressor()
     residual_var_model.fit(product_encoded_train, residual_target)
     predicted_residual_std = residual_var_model.predict(product_encoded_test)
@@ -169,16 +216,13 @@ def train_and_save_residual(df, config):
     data_test['pred'] = y_final_pred
     data_test['lower_bound'] = lower_bound
     data_test['upper_bound'] = upper_bound
-    print(data_train.shape)
-    print(data_train.columns)
-    print(data_test.shape)
-    print(data_test.columns)
+    # print(data_train.shape)
+    # print(data_train.columns)
+    # print(data_test.shape)
+    # print(data_test.columns)
     df_combined = pd.concat([data_train, data_test], axis=0, ignore_index=True)
-    print(df_combined.shape)
+    # print(df_combined.shape)
     df_combined.to_csv('data/case_study_data_combined.csv', index=False)
-    # ------------------------
-    # Step 4: 返回预测区间结果
-    # ------------------------
 
     prediction_interval_df = pd.DataFrame({
         'y_pred': y_final_pred,
@@ -186,7 +230,6 @@ def train_and_save_residual(df, config):
         'lower_bound': lower_bound,
         'upper_bound': upper_bound
     })
-
     # print(prediction_interval_df.shape)
 
 # # === Inference Function ===
