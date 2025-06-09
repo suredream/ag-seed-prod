@@ -61,20 +61,25 @@ enable you have `uv` with `python 3.10` in your environment.
 
     ```bash
     PYTHONPATH=src uv run uvicorn main:app --reload --port 8000
-    # FastAPI doc: http://localhost:8000/docs
-
     ```
 
 3.  Run the Streamlit dashboard:
 
     ```bash
     uv run streamlit run src/dashboard/app.py
-    # Streamlit Dashboard: http://localhost:8501
     ```
     
 
-3.  Access the Streamlit Dashboard: [http://localhost:8501](http://localhost:8501)
 4.  Access the FastAPI documentation: [http://localhost:8000/docs](http://localhost:8000/docs)
+5.  Access the Streamlit Dashboard: [http://localhost:8501](http://localhost:8501)
+
+## Running Unit Tests
+
+To run the unit tests, use the following command:
+
+```bash
+uv run pytest
+
 
 ## TODO
 
@@ -84,3 +89,4 @@ enable you have `uv` with `python 3.10` in your environment.
 -   Clean up the code; docstrings
 -   Add more detailed documentation
 -   Unit test
+-   Dockerization for deployment

@@ -1,10 +1,5 @@
 import sys
 import os
-
-# Dynamically add project root (containing 'src') to PYTHONPATH
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -12,23 +7,21 @@ import toml
 import shap
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
-import plotly.express as px
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
-from src.utils import load_artifacts, calculate_confidence_intervals
 from scipy.stats import gaussian_kde
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import requests
 import joblib
 st.set_page_config(page_title="Model Analysis Dashboard", layout="wide")
 
-# config = toml.load("config/xgb.toml")
-config = toml.load("config/residual.toml")
-# model, scaler, pca, X_train, X_test, y_train, y_test, y_base_test, y_residual_test = load_artifacts(config)
-model, X_train, X_test, y_train, y_pred_train, y_test, y_final_pred, y_base_test, y_residual_test = joblib.load(config['output']['app_path'])
-# print(X_test.columns)
+def compute_shap(model, X_train, X_test):
+    explainer = shap.TreeExplainer(model)
+    return explainer, explainer.shap_values(X_train), explainer.shap_values(X_test)
 
-# -------------------------------
-# Group filter selectors
-# -------------------------------
+
+config = toml.load("config/residual.toml")
+model, X_train, X_test, y_train, y_pred_train, y_test, y_final_pred, y_base_test, y_residual_test = joblib.load(config['output']['app_path'])
+
+# Sidebar: Group filter selectors
 st.sidebar.header("🔎 SODA Dashboard")
 
 # Ensure required columns exist
@@ -43,11 +36,12 @@ state_options = sorted(X_test['STATE'].unique())
 lifecycle_options = sorted(X_test['LIFECYCLE'].unique())
 product_options = sorted(X_test['PRODUCT'].unique())
 
+# Multiselect filters for STATE, LIFECYCLE and PRODUCT
 selected_states = st.sidebar.multiselect("Select STATE(s)", state_options, default=state_options)
 selected_lifecycles = st.sidebar.multiselect("Select LIFECYCLE(s)", lifecycle_options, default=lifecycle_options)
 selected_products = st.sidebar.multiselect("Select PRODUCT(s)", product_options, default=product_options)
 
-# Filtered data
+# Filter data based on selected options
 mask = (
     X_test['PRODUCT'].isin(selected_products) &
     X_test['STATE'].isin(selected_states) &
@@ -56,26 +50,22 @@ mask = (
 X_test_filtered = X_test[mask]
 y_test_filtered = y_test[mask]
 
-# Stop if no data
+# Stop if no data is selected
 if len(X_test_filtered) == 0:
     st.warning("No data matches the selected filters.")
     st.stop()
 
-# # Predict
-# X_test = X_test_filtered[config['features']['final']]
-# y_pred_test_filtered = model.predict(X_test)
-# y_pred_train = model.predict(X_train)
+# Get predictions for filtered data
 y_pred_test_filtered = y_final_pred[mask]
 y_base_test_filtered = y_base_test[mask]
 y_residual_filtered = y_residual_test[mask]
 
-# -------------------------------
-# Evaluation metrics
-# -------------------------------
+# Main Panel: Evaluation metrics
 col1, col2, col22 = st.columns([1.5, 2, 2])
 
 with col1:
-    st.subheader("📈 [Internal User]Model Metrics")
+    st.subheader("📈 [Internal User] Model Metrics")
+    # Calculate evaluation metrics
     train_rmse = np.sqrt(mean_squared_error(y_train, y_pred_train))
     train_r2 = r2_score(y_train, y_pred_train)
     train_mae = mean_absolute_error(y_train, y_pred_train)
@@ -84,12 +74,7 @@ with col1:
     test_r2 = r2_score(y_test_filtered, y_pred_test_filtered)
     test_mae = mean_absolute_error(y_test_filtered, y_pred_test_filtered)
 
-    # metrics_df = pd.DataFrame({
-    #     'Metric': ['RMSE', 'R²', 'MAE'],
-    #     'Train': [f'{train_rmse:.3f}', f'{train_r2:.3f}', f'{train_mae:.3f}'],
-    #     'Test': [f'{test_rmse:.3f}', f'{test_r2:.3f}', f'{test_mae:.3f}']
-    # })
-    # st.dataframe(metrics_df, use_container_width=True)
+    # Display Train metrics
     train_col1, train_col2, train_col3 = st.columns(3)
     test_col1, test_col2, test_col3 = st.columns(3)
     with train_col1:
@@ -108,6 +93,7 @@ with col1:
         st.metric(label="Test MAE", value=f"{test_mae:.3f}")
 
 with col2:
+    # Scatter plot of predicted vs actual values
     fig_scatter = go.Figure()
     fig_scatter.add_trace(go.Scatter(x=y_test_filtered, y=y_pred_test_filtered, mode='markers', name='Test'))
     min_val = min(y_test_filtered.min(), y_pred_test_filtered.min())
@@ -116,6 +102,7 @@ with col2:
     fig_scatter.update_layout(title='Predicted vs Actual', xaxis_title='Actual', yaxis_title='Predicted', showlegend=False, font=dict(size=20))
     st.plotly_chart(fig_scatter, use_container_width=True)
 
+    # Calculate residuals
     residuals = y_test_filtered - y_pred_test_filtered
     hist_data = np.histogram(residuals, bins=30)
     x_hist = hist_data[1]
@@ -123,6 +110,7 @@ with col2:
 
 
 with col22:
+    # KDE plot of residuals
     kde = gaussian_kde(residuals)
     x_kde = np.linspace(residuals.min(), residuals.max(), 200)
     y_kde = kde(x_kde)
@@ -153,13 +141,9 @@ with col22:
     )
     st.plotly_chart(fig_residuals, use_container_width=True)
 
-st.subheader("🔍 [Internal User]Feature Impact")
-
-def compute_shap(model, X_train, X_test):
-    explainer = shap.TreeExplainer(model)
-    return explainer, explainer.shap_values(X_train), explainer.shap_values(X_test)
-
+st.subheader("🔍 [Internal User] Feature Impact")
 try:
+    # Prepare data for SHAP computation
     X_train_fea = X_train.drop(columns=['PRODUCT', 'STATE', 'LIFECYCLE'])
     X_test_bounds = X_test.copy()
     X_test = X_test.drop(columns=['PRODUCT', 'STATE', 'LIFECYCLE','lower_bound', 'upper_bound'])
@@ -167,15 +151,8 @@ try:
 
     col5, col6 = st.columns(2)
 
-    # with col6:
-    #     st.subheader("SHAP Summary")
-    #     fig1, ax = plt.subplots(figsize=(5, 3))
-    #     shap.summary_plot(shap_values_test, X_test, show=False)
-    #     st.pyplot(fig1)
-    #     plt.close()
-
     with col5:
-        # st.subheader("SHAP Feature Impact")
+        # SHAP Feature Impact Plot
         fig2, ax = plt.subplots(figsize=(10, 6))
         shap.summary_plot(shap_values_test, X_test, plot_type="bar", show=False)
         st.pyplot(fig2)
@@ -190,7 +167,7 @@ try:
         df_pred['STATE'].isin(selected_states)
     )
 
-    st.subheader("🔍 [External User]Top Products (Error range provided for the reference to cost control)") 
+    st.subheader("🔍 [External User] Top Products")
     top_k = st.slider("", 5, 20, 5)
     ranking = df_pred[pred_mask].sort_values("predicted_yield", ascending=False).head(top_k)
     ranking_sorted = ranking.sort_values("predicted_yield", ascending=True)
@@ -214,16 +191,15 @@ try:
         height=400,
         margin=dict(l=100, r=40, t=60, b=40)
     )
-    # st.dataframe(ranking_sorted, use_container_width=True)
     st.plotly_chart(fig, use_container_width=True)
 
 
     # Single sample
-    st.subheader("🎯 [For External User]Single Prediction & Explanation")
+    st.subheader("🎯 [External User] Single Prediction & Explanation")
     col7, col8, col9 = st.columns([1, 2, 1])
     with col7:
-        product_options = X_test_bounds['PRODUCT'].unique().tolist() 
-        sample_select = st.selectbox("Select Sample Product", product_options) 
+        product_options = X_test_bounds['PRODUCT'].unique().tolist()
+        sample_select = st.selectbox("Select Sample Product", product_options)
         sample_idx = product_options.index(sample_select)
         sample = X_test.iloc[sample_idx]
         pred = y_pred_test_filtered[sample_idx]
@@ -232,7 +208,7 @@ try:
         actual = y_test_filtered.iloc[sample_idx]
         uplimit = X_test_bounds['upper_bound'].iloc[sample_idx]
         lowlimit = X_test_bounds['lower_bound'].iloc[sample_idx]
-        
+
         st.write("**Sample Features**")
         st.dataframe(pd.DataFrame({'Feature': sample.index, 'Value': sample.values}))
         c1, c2, c3 = st.columns(3)
@@ -267,7 +243,7 @@ try:
                 json=payload
             )
             explanation = response.json()["explanation"]
-            st.write("**GenAI Explanation**") 
+            st.write("**GenAI Explanation**")
             st.markdown(explanation)
         except Exception as e:
             st.error(f"Explanation generation failed: {e}")
@@ -307,8 +283,6 @@ except Exception as e:
     st.error(f"SHAP computation failed: {e}")
     shap_values_test = None
 
-# -------------------------------
 # Footer
-# -------------------------------
 st.markdown("---")
 st.markdown("This dashboard presents model performance, interpretability, and uncertainty analysis with group-level filters.")

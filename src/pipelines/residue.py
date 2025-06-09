@@ -1,4 +1,3 @@
-# train_model.py
 import pandas as pd
 import numpy as np
 import joblib
@@ -6,7 +5,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from xgboost import XGBRegressor
-from sklearn.ensemble import GradientBoostingRegressor 
+from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import toml
 import shap
@@ -17,13 +16,24 @@ from scipy.stats import norm
 # === Load Config ===
 config = toml.load("config/residual.toml")
 
+
 # === Utility Functions ===
 def preprocess_data(df, config):
-    # df['PRODUCT_encoded'] = label_encoder.fit_transform(df['PRODUCT'])
-    # Fill missing values
-    df['DROUGHT_TOLERANCE'] = df.groupby(['LIFECYCLE', 'STATE'])['DROUGHT_TOLERANCE']\
+    """
+    Preprocesses the input DataFrame by filling missing values and engineering new features.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        config (dict): Configuration parameters.
+
+    Returns:
+        pd.DataFrame: The preprocessed DataFrame.
+    """
+    # Fill missing values in 'DROUGHT_TOLERANCE' using the mean for each 'LIFECYCLE' and 'STATE'
+    df['DROUGHT_TOLERANCE'] = df.groupby(['LIFECYCLE', 'STATE'])['DROUGHT_TOLERANCE'] \
         .transform(lambda x: x.fillna(x.mean().round()))
 
+    # Fill missing values in 'BRITTLE_STALK' and 'PLANT_HEIGHT' with values from the config
     df['BRITTLE_STALK'] = pd.to_numeric(df['BRITTLE_STALK'], errors='coerce').fillna(config['impute']['BRITTLE_STALK'])
     df['PLANT_HEIGHT'] = pd.to_numeric(df['PLANT_HEIGHT'], errors='coerce').fillna(config['impute']['PLANT_HEIGHT'])
 
@@ -32,8 +42,6 @@ def preprocess_data(df, config):
     df['PRODUCT_AGE'] = df['SALESYEAR'] - df['RELEASE_YEAR']
     df['AGE_X_PROTECTION'] = df['PRODUCT_AGE'] * df['PROTECTION_SCORE']
     df['HEIGHT_X_MATURITY'] = df['PLANT_HEIGHT'] * df['RELATIVE_MATURITY']
-    # df['IS_NEW_PRODUCT'] = (df['PRODUCT_AGE'] <= 2).astype(int)
-
 
     # Feature Engineering: PREVIOUS_UNITS
     df['UNITS_NORM_BY_PRODUCT'] = df.groupby('PRODUCT')['UNITS'].transform(lambda x: (x - x.mean()) / (x.std() + 1e-5))
@@ -46,7 +54,18 @@ def preprocess_data(df, config):
 
     return df
 
+
 def generate_pca_features(df, config):
+    """
+    Generates PCA features from the specified input features.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        config (dict): Configuration parameters.
+
+    Returns:
+        tuple: The DataFrame with PCA features, the scaler, and the PCA object.
+    """
     pca_features = config['features']['pca_inputs']
     scaler = StandardScaler()
     pca = PCA(n_components=2)
@@ -56,7 +75,18 @@ def generate_pca_features(df, config):
     df['PCA2'] = pca_result[:, 1]
     return df, scaler, pca
 
+
 def encode_categorical(df, config):
+    """
+    Encodes categorical features using one-hot encoding.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        config (dict): Configuration parameters.
+
+    Returns:
+        pd.DataFrame: The DataFrame with encoded categorical features.
+    """
     for col in config['categorical']['one_hot_columns_flat']:  # all possible One-Hot columns
         df[col] = 0
     for col in config['categorical']['columns']:
@@ -66,69 +96,30 @@ def encode_categorical(df, config):
             df.loc[:, encoded_col] = 1
     return df
 
+
 def train_and_save_residual(df, config):
+    """
+    Trains a residual model and saves the model artifacts.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        config (dict): Configuration parameters.
+    """
     df = preprocess_data(df, config)
-    # print(df.columns.to_list())
     df, scaler, pca = generate_pca_features(df, config)
-    # df = encode_categorical(df, config)
     df_cat = df[config['categorical']['columns']]
     df = pd.get_dummies(df, columns=config['categorical']['columns'])
     df = pd.concat([df, df_cat], axis=1)
 
     X = df[config['features']['final']]
     X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
-    # y = df[config['target']['column']]#.squeeze()
     y = df['UNITS']
 
-    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     # Split data
     X_train, X_test, y_train, y_test, prod_train, prod_test = train_test_split(
         X, y, df['PRODUCT'], test_size=0.2, random_state=42, stratify=df['STATE'])
 
-
-    # xgboost: grid search for tuning
-    if False:  # set to True to enable grid search
-        from sklearn.model_selection import GridSearchCV
-
-
-        param_grid = {
-            'n_estimators': [200, 250, 300, 400, 500],
-            'max_depth': [3,4, 5, 6, 7, 8],
-            'learning_rate': [0.01, 0.05, 0.1],
-            'subsample': [0.5, 0.6, 0.7, 0.8]
-        }
-        xgb_model_base = XGBRegressor(random_state=42)
-
-        # GridSearchCV
-        grid_search = GridSearchCV(
-            estimator=xgb_model_base,
-            param_grid=param_grid,
-            scoring='neg_mean_squared_error',
-            cv=3,
-            verbose=1,
-            n_jobs=-1
-        )
-
-        # train
-        grid_search.fit(X_train, y_train)
-
-        # 最佳模型预测
-        best_model = grid_search.best_estimator_
-        y_pred_best = best_model.predict(X_test)
-
-        # eval
-        mse_best = mean_squared_error(y_test, y_pred_best)
-        r2_best = r2_score(y_test, y_pred_best)
-        mae_best = mean_absolute_error(y_test, y_pred_best)
-        print('grid_search result', best_model)
-        print(grid_search.best_params_)
-        print('mae_best', mae_best)
-        print('mse_best', mse_best)
-        print('r2_best', r2_best)
-        raise
-
     # Train base model
-    # apply best params from grid search directly
     print('xgb_params', config['xgb_params'])
     base_model = XGBRegressor(**config['xgb_params'])
     base_model.fit(X_train, y_train)
@@ -140,21 +131,20 @@ def train_and_save_residual(df, config):
     # Encode product_name
     ohe = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
     product_encoded_train = ohe.fit_transform(prod_train.to_frame())
-    # print(product_encoded_train.shape, product_encoded_train)
     product_encoded_test = ohe.transform(prod_test.to_frame())
 
-    # # Train dummy residual model
+    # Train dummy residual model
     residual_model = XGBRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
     residual_model.fit(product_encoded_train, residuals_train)
 
-    # # Inference
+    # Inference
     y_base_pred_test = base_model.predict(X_test)
     y_residual_pred_test = residual_model.predict(product_encoded_test)
     y_final_pred = y_base_pred_test + y_residual_pred_test
     # temporarily set negative predictions to zero
     y_final_pred = np.maximum(y_final_pred, 0)
 
-    # # Inference train dataset
+    # Inference train dataset
     y_base_pred_train = base_model.predict(X_train)
     y_residual_pred_train = residual_model.predict(product_encoded_train)
     y_pred_train = y_base_pred_train + y_residual_pred_train
@@ -180,13 +170,13 @@ def train_and_save_residual(df, config):
     residual_var_model = GradientBoostingRegressor()
     residual_var_model.fit(product_encoded_train, residual_target)
     predicted_residual_std = residual_var_model.predict(product_encoded_test)
-    
+
     lower_bound = y_final_pred - z_score * predicted_residual_std
     lower_bound = np.maximum(lower_bound, 0)
     upper_bound = y_final_pred + z_score * predicted_residual_std
 
     predicted_residual_std_train = residual_var_model.predict(product_encoded_train)
-    
+
     lower_bound_train = y_pred_train - z_score * predicted_residual_std_train
     lower_bound_train = np.maximum(lower_bound_train, 0)
     upper_bound_train = y_pred_train + z_score * predicted_residual_std_train
@@ -216,12 +206,7 @@ def train_and_save_residual(df, config):
     data_test['pred'] = y_final_pred
     data_test['lower_bound'] = lower_bound
     data_test['upper_bound'] = upper_bound
-    # print(data_train.shape)
-    # print(data_train.columns)
-    # print(data_test.shape)
-    # print(data_test.columns)
     df_combined = pd.concat([data_train, data_test], axis=0, ignore_index=True)
-    # print(df_combined.shape)
     df_combined.to_csv('data/case_study_data_combined.csv', index=False)
 
     prediction_interval_df = pd.DataFrame({
@@ -230,28 +215,30 @@ def train_and_save_residual(df, config):
         'lower_bound': lower_bound,
         'upper_bound': upper_bound
     })
-    # print(prediction_interval_df.shape)
+
 
 # # === Inference Function ===
 def inference_residual(input_df, product_name, config):
+    """
+    Infers the output using the residual model.
+
+    Args:
+        input_df (pd.DataFrame): The input DataFrame.
+        product_name (str): The product name.
+        config (dict): Configuration parameters.
+
+    Returns:
+        dict: A dictionary containing the prediction and explanation.
+    """
     base_model = joblib.load(config['output']['base_model_path'])
     scaler = joblib.load(config['output']['base_scaler_path'])
     residual_model = joblib.load(config['output']['residue_model_path'])
     product_encoder = joblib.load(config['output']['residue_ohe_path'])
-#     pca = joblib.load(config['output']['pca_path'])
 
     df = preprocess_data(input_df.copy(), config)
-#     pca_features = config['features']['pca_inputs']
-#     scaled = scaler.transform(df[pca_features])
-#     pca_result = pca.transform(scaled)
-#     df['PCA1'] = pca_result[:, 0]
-#     df['PCA2'] = pca_result[:, 1]
     df = encode_categorical(df, config)
     X = df[config['features']['final']]
-#     pred = model.predict(X)
-#     return pred, X
 
-    # X_trait = trait_encoder(input_df)
     # Trait prediction
     y_base_pred = base_model.predict(X)
 
@@ -264,7 +251,6 @@ def inference_residual(input_df, product_name, config):
 
     # Final prediction
     y_final_pred = y_base_pred + y_residual_pred
-    # print('y_final_pred', y_final_pred, y_base_pred, y_residual_pred)
 
     pred = [float(y[0]) for y in (y_final_pred, y_base_pred, y_residual_pred)]
     explainer = shap.TreeExplainer(base_model)
@@ -273,6 +259,6 @@ def inference_residual(input_df, product_name, config):
         'pred': pred[0],
         'explain': {'pred': pred,
                     'input': X.iloc[0].tolist(),
-                    'shap_values':shap_values,
+                    'shap_values': shap_values,
                     'feature_names': config['features']['final']}
     }

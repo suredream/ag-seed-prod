@@ -1,46 +1,58 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import pandas as pd
 
-from src.utils import load_artifacts, calculate_confidence_intervals
-from src.pipelines.xgb import train_and_save, inference
 from src.pipelines.explain import call_explain, build_prompt
 
+# Initialize FastAPI app
+app = FastAPI(
+    title="Model Prediction API",
+    description="Predict values and return confidence intervals"
+)
 
-app = FastAPI(title="Model Prediction API", description="Predict values and return confidence intervals")
-
+# Define data models for request and response
 class PredictRequest(BaseModel):
+    """
+    Request model for prediction endpoint.
+    """
     data: dict
 
 class ShapRequest(BaseModel):
+    """
+    Request model for SHAP explanation endpoint.
+    """
     features: list[float]
     names: list[str]
     shap: list[float]
     prediction: list[float]
 
 class PredictResponse(BaseModel):
+    """
+    Response model for prediction endpoint.
+    """
     prediction: list[float]
-    # lower_bound: list[float]
-    # upper_bound: list[float]
 
-# @app.post("/predict", response_model=PredictResponse)
-# def predict(req: PredictRequest):
-#     X_input = pd.DataFrame([req.data])#, columns=feature_cols)
-#     preds, X = inference(X_input, config)
-#     # lower, upper = calculate_confidence_intervals(model, X, confidence=req.confidence)
-#     return {
-#         "prediction": preds.tolist(),
-#     }
-
+# Define API endpoints
 @app.post("/explain_shap")
 def explain_shap(req: ShapRequest):
-    # return {"hello": "world"}
+    """
+    Generates an explanation for a single prediction using SHAP values and a GenAI model.
+
+    Args:
+        req (ShapRequest): Request containing feature values, feature names,
+                           SHAP values, and the model's prediction.
+
+    Returns:
+        dict: A dictionary containing the prediction, the prompt used for
+              explanation, and the generated explanation.
+    """
     input_vals = req.features
     names = req.names
     shap_values = req.shap
     prediction = req.prediction
 
+    # Build prompt for GenAI explanation
     prompt = build_prompt(input_vals, names, shap_values, prediction)
+    # Call GenAI model to get explanation
     explanation = call_explain(prompt)
 
     return {
