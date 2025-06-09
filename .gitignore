@@ -12,3 +12,4 @@ docs
 *.db
 .DS_Store
 obsolete/
+.env

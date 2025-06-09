@@ -51,44 +51,7 @@ Conclude with 1-liner insight on the sample’s value profile.
 """
     return prompt
 
-def build_business_prompt(product_id, shap_summary, prediction_context):
-    """
-    Generate a prompt string for LLM to explain SHAP and residual-based prediction in business language.
-
-    Parameters:
-    - product_id (str): Identifier of the product
-    - shap_summary (list of dict): List like [{"feature": str, "value": Any, "impact": float}]
-    - prediction_context (dict): Includes keys:
-        - predicted_units (float)
-        - trait_model_output (float)
-        - residual_model_output (float)
-
-    Returns:
-    - str: A complete prompt ready for LLM input
-    """
-
-    shap_lines = "\n".join([
-        f"- {item['feature']}: value = {item['value']}, impact = {item['impact']:+.1f}"
-        for item in shap_summary
-    ])
-
-    prompt = f"""
-You are a business analyst assistant. Based on the SHAP analysis and model outputs below, generate a clear, business-friendly explanation for why this product ({product_id}) is predicted to perform well or poorly in the current season.
-
-Data:
-- Trait-based model predicted {prediction_context['trait_model_output']:.1f} units.
-- Residual model (product-specific correction) added {prediction_context['residual_model_output']:.1f} units.
-- Final predicted sales: {prediction_context[0]:.2f} units.
-
-Top trait drivers:
-{shap_lines}
-
-Your output should be a paragraph explaining the sales expectation to a non-technical product manager.
-""".strip()
-
-    return prompt
-
-  # You can feed this into an OpenAI API or other LLM tool
+# You can feed this into an OpenAI API or other LLM tool
 def call_explain(prompt: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",

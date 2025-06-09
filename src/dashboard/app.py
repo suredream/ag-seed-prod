@@ -75,7 +75,7 @@ y_residual_filtered = y_residual_test[mask]
 col1, col2, col22 = st.columns([1.5, 2, 2])
 
 with col1:
-    st.subheader("📈 [For Internal User]Model Eval Metrics")
+    st.subheader("📈 [Internal User]Model Metrics")
     train_rmse = np.sqrt(mean_squared_error(y_train, y_pred_train))
     train_r2 = r2_score(y_train, y_pred_train)
     train_mae = mean_absolute_error(y_train, y_pred_train)
@@ -153,34 +153,7 @@ with col22:
     )
     st.plotly_chart(fig_residuals, use_container_width=True)
 
-# # -------------------------------
-# # Confidence Intervals
-# # -------------------------------
-# st.subheader("📊 Prediction Confidence Interval")
-
-# col3, col4 = st.columns(2)
-# confidence_level = col3.slider("Confidence Level", 0.8, 0.99, 0.95, 0.01)
-# n_samples_to_show = col4.slider("Samples to Show", 10, 50, min(20, len(y_test_filtered)))
-
-# lower_bound, upper_bound = calculate_confidence_intervals(model, X_test, confidence=confidence_level)
-# indices_to_show = sorted(np.random.choice(len(y_test_filtered), n_samples_to_show, replace=False))
-
-# fig_ci = go.Figure()
-# fig_ci.add_trace(go.Scatter(x=list(range(n_samples_to_show)), y=upper_bound[indices_to_show], fill=None, mode='lines'))
-# fig_ci.add_trace(go.Scatter(x=list(range(n_samples_to_show)), y=lower_bound[indices_to_show], fill='tonexty', mode='lines',
-#                             name=f'{confidence_level*100:.0f}% Interval', fillcolor='rgba(0,100,80,0.2)'))
-# fig_ci.add_trace(go.Scatter(x=list(range(n_samples_to_show)), y=y_pred_test_filtered[indices_to_show], mode='markers+lines', name='Predicted'))
-# fig_ci.add_trace(go.Scatter(x=list(range(n_samples_to_show)), y=y_test_filtered.iloc[indices_to_show], mode='markers', name='Actual'))
-# fig_ci.update_layout(title='Prediction Confidence Interval', xaxis_title='Sample Index', yaxis_title='Value')
-# st.plotly_chart(fig_ci, use_container_width=True)
-
-
-# -------------------------------
-# SHAP
-# -------------------------------
-
-
-st.subheader("🔍 [For Internal User]Feature Impact")
+st.subheader("🔍 [Internal User]Feature Impact")
 
 def compute_shap(model, X_train, X_test):
     explainer = shap.TreeExplainer(model)
@@ -210,7 +183,6 @@ try:
 
 
     df_pred = pd.read_csv('data/case_study_data_combined.csv').groupby(['PRODUCT','STATE'])[['pred','lower_bound','upper_bound']].mean().reset_index()
-    # st.dataframe(df_pred.head(), use_container_width=True)
     df_pred["predicted_yield"] = df_pred["pred"]
 
     pred_mask = (
@@ -218,17 +190,10 @@ try:
         df_pred['STATE'].isin(selected_states)
     )
 
-    st.subheader("🔍 [For External User]Top Products (Error range provided for the reference to cost control)") 
+    st.subheader("🔍 [External User]Top Products (Error range provided for the reference to cost control)") 
     top_k = st.slider("", 5, 20, 5)
     ranking = df_pred[pred_mask].sort_values("predicted_yield", ascending=False).head(top_k)
     ranking_sorted = ranking.sort_values("predicted_yield", ascending=True)
-    # fig = go.Figure(go.Bar(
-    #     x=ranking_sorted["predicted_yield"],
-    #     y=ranking_sorted["PRODUCT"],
-    #     orientation='h',
-    #     text=ranking_sorted["predicted_yield"].round(2),
-    #     textposition="auto"
-    # ))
     fig = go.Figure(go.Bar(
         x=ranking_sorted["predicted_yield"],
         y=ranking_sorted["PRODUCT"],
@@ -341,27 +306,6 @@ try:
 except Exception as e:
     st.error(f"SHAP computation failed: {e}")
     shap_values_test = None
-
-# # -------------------------------
-# # Download section
-# # -------------------------------
-# st.subheader("💾 Download Results")
-
-# col9, col10 = st.columns(2)
-# with col9:
-#     df_results = pd.DataFrame({
-#         "actual": y_test_filtered,
-#         "predicted": y_pred_test_filtered,
-#         "lower_bound": lower_bound[:len(y_test_filtered)],
-#         "upper_bound": upper_bound[:len(y_test_filtered)],
-#     })
-#     st.download_button("Download Predictions", df_results.to_csv(index=False), "predictions.csv", "text/csv")
-
-# with col10:
-#     if shap_values_test is not None:
-#         shap_df = pd.DataFrame(shap_values_test, columns=X_test.columns)
-#         st.download_button("Download SHAP Values", shap_df.to_csv(index=False), "shap_values.csv", "text/csv")
-
 
 # -------------------------------
 # Footer
