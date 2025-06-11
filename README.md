@@ -17,7 +17,7 @@ The project is organized as follows:
 -   `config/`: Contains configuration files (TOML format) for different models and pipelines.
     -   [`residual.toml`](config/residual.toml): Configuration for the residual model.
     -   [`xgb.toml`](config/xgb.toml): Configuration for the XGBoost model.
--   `src/`: Contains the source code for the project.
+
     -   [`__init__.py`](src/__init__.py): Initializes the `src` directory as a Python package.
     -   `utils.py`: Includes utility functions for model loading, evaluation, and confidence interval calculation.
     -   `dashboard/`: Contains code for the Streamlit dashboard.
@@ -25,6 +25,8 @@ The project is organized as follows:
     -   `pipelines/`: Contains code for the data processing and model training pipelines.
         -   [`xgb.py`](src/pipelines/xgb.py): XGBoost pipeline.
         -   [`residue.py`](src/pipelines/residue.py): Residual pipeline.
+-   `notebooks/`: Contains Jupyter notebooks for data exploration and model interpretation.
+-   `tests/`: unit tests scripts
 
 ## Model Performance
 ```
@@ -51,6 +53,13 @@ enable you have `uv` with `python 3.10` in your environment.
     ```
 
 ## Usage
+
+0.  Set the `OPENROUTER_API_KEY` in `.env` file.
+    ```bash
+    cp .env.example .env
+    # edit .env
+    ```
+
 
 1.  Run the model training pipeline:
     ```bash

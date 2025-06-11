@@ -64,7 +64,7 @@ y_residual_filtered = y_residual_test[mask]
 col1, col2, col22 = st.columns([1.5, 2, 2])
 
 with col1:
-    st.subheader("📈 [Internal User] Model Metrics")
+    st.subheader("📈 [Internal] Model Metrics")
     # Calculate evaluation metrics
     train_rmse = np.sqrt(mean_squared_error(y_train, y_pred_train))
     train_r2 = r2_score(y_train, y_pred_train)
@@ -141,7 +141,7 @@ with col22:
     )
     st.plotly_chart(fig_residuals, use_container_width=True)
 
-st.subheader("🔍 [Internal User] Feature Impact")
+st.subheader("🔍 [Internal] Feature Impact")
 try:
     # Prepare data for SHAP computation
     X_train_fea = X_train.drop(columns=['PRODUCT', 'STATE', 'LIFECYCLE'])
@@ -167,13 +167,14 @@ try:
         df_pred['STATE'].isin(selected_states)
     )
 
-    st.subheader("🔍 [External User] Top Products")
+    st.subheader("🔍 [StakeholderTool] Top Products")
     top_k = st.slider("", 5, 20, 5)
     ranking = df_pred[pred_mask].sort_values("predicted_yield", ascending=False).head(top_k)
     ranking_sorted = ranking.sort_values("predicted_yield", ascending=True)
+    ranking_sorted['PRODUCT_REGION'] = ranking['PRODUCT'] + '_' + ranking['STATE']
     fig = go.Figure(go.Bar(
         x=ranking_sorted["predicted_yield"],
-        y=ranking_sorted["PRODUCT"],
+        y=ranking_sorted["PRODUCT_REGION"],
         orientation='h',
         text=ranking_sorted["predicted_yield"].round(2),
         textposition="auto",
@@ -195,7 +196,7 @@ try:
 
 
     # Single sample
-    st.subheader("🎯 [External User] Single Prediction & Explanation")
+    st.subheader("🎯 [StakeholderTool]Prediction & Explanation")
     col7, col8, col9 = st.columns([1, 2, 1])
     with col7:
         product_options = X_test_bounds['PRODUCT'].unique().tolist()

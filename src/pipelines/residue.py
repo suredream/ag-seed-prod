@@ -30,6 +30,7 @@ def preprocess_data(df, config):
         pd.DataFrame: The preprocessed DataFrame.
     """
     # Fill missing values in 'DROUGHT_TOLERANCE' using the mean for each 'LIFECYCLE' and 'STATE'
+
     df['DROUGHT_TOLERANCE'] = df.groupby(['LIFECYCLE', 'STATE'])['DROUGHT_TOLERANCE'] \
         .transform(lambda x: x.fillna(x.mean().round()))
 
